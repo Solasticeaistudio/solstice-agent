@@ -6,6 +6,13 @@
 
 <p align="center">An AI agent framework that actually does things.</p>
 
+<p align="center">
+  <a href="https://pypi.org/project/solstice-agent/"><img src="https://img.shields.io/pypi/v/solstice-agent?color=8b5cf6&style=flat-square" alt="PyPI"></a>
+  <a href="https://pypi.org/project/solstice-agent/"><img src="https://img.shields.io/pypi/pyversions/solstice-agent?color=70e1ff&style=flat-square" alt="Python"></a>
+  <a href="https://github.com/Solasticeaistudio/solstice-agent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Solasticeaistudio/solstice-agent?color=10b981&style=flat-square" alt="License"></a>
+  <a href="https://github.com/Solasticeaistudio/solstice-agent/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Solasticeaistudio/solstice-agent/ci.yml?style=flat-square&label=CI" alt="CI"></a>
+</p>
+
 Not a chatbot wrapper. Not a webhook proxy. An autonomous agent with 72 built-in tools, 4 LLM providers, multi-agent routing, headless browser control, voice (TTS/STT), persistent memory, multimodal vision, autonomous API discovery, a skill system, cron scheduling, LLM context compaction — and a 21-channel messaging gateway.
 
 ```
