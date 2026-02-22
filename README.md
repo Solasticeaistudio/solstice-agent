@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/solstice-logo.svg" alt="Solstice Agent" width="400">
+  <img src="assets/solstice-logo.png" alt="Solstice Agent" width="200">
 </p>
 
 <h1 align="center">Solstice Agent</h1>
