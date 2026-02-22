@@ -115,6 +115,12 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
 
 def list_files(path: str = ".", pattern: str = "*", max_results: int = 100) -> str:
     """List files in a directory, optionally filtered by glob pattern."""
+    from .security import validate_path
+
+    path_err = validate_path(path, "list")
+    if path_err:
+        return f"Error: {path_err}"
+
     try:
         p = Path(path).expanduser().resolve()
         if not p.exists():
@@ -327,6 +333,11 @@ def grep_files(pattern: str, path: str = ".", glob: str = None, max_results: int
     file paths and line numbers.
     """
     import re
+    from .security import validate_path
+
+    path_err = validate_path(path, "search")
+    if path_err:
+        return f"Error: {path_err}"
 
     try:
         regex = re.compile(pattern, re.IGNORECASE)
@@ -383,6 +394,12 @@ def find_files(pattern: str, path: str = ".", max_results: int = 100) -> str:
     """
     Find files by name pattern (glob). Searches recursively.
     """
+    from .security import validate_path
+
+    path_err = validate_path(path, "find")
+    if path_err:
+        return f"Error: {path_err}"
+
     try:
         root = Path(path).expanduser().resolve()
         if not root.exists():

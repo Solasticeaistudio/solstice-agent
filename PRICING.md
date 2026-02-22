@@ -73,7 +73,7 @@ Iris has no competition.
   * **Companion Server:** WebSocket on port 9999 for mobile app sync.
   * **Cloud Relay:** Remote control via solstice.solsticestudio.ai.
 
-**Why $29?** There is nothing like Iris on the market. OpenClaw is terminal-only. Claude Code is terminal-only. Cursor is a code editor. Iris is a visual AI operating system with a 3D avatar, voice control, and gesture recognition. $29 is a steal.
+**Why $29?** There is nothing like Iris on the market. OpenClaw is terminal-only. Cursor is a code editor. Iris is a visual AI operating system with a 3D avatar, voice control, and gesture recognition. $29 is a steal.
 
 ---
 

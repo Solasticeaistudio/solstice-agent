@@ -9,6 +9,7 @@ import ipaddress
 import logging
 import os
 import re
+import socket
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -31,23 +32,51 @@ _METADATA_HOSTS = {
 
 
 def _is_private_ip(hostname: str) -> bool:
-    """Check if a hostname resolves to a private/reserved IP."""
+    """Check if a hostname resolves to a private/reserved IP.
+
+    Performs actual DNS resolution to catch DNS rebinding attacks where
+    an attacker-controlled hostname resolves to 127.0.0.1 or other
+    private addresses.
+    """
+    # Check for localhost aliases first
+    lower = hostname.lower()
+    if lower in ("localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"):
+        return True
+
+    # Try parsing as IP literal (handles standard, hex, and octal forms)
     try:
         addr = ipaddress.ip_address(hostname)
-        return (
-            addr.is_private
-            or addr.is_loopback
-            or addr.is_link_local
-            or addr.is_reserved
-            or addr.is_multicast
-        )
+        return _is_dangerous_addr(addr)
     except ValueError:
-        # Not an IP literal — check for localhost aliases
-        lower = hostname.lower()
-        if lower in ("localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"):
-            return True
-        # Check for hex/octal encoded localhost (0x7f000001, 017700000001, etc.)
-        return False
+        pass
+
+    # Not an IP literal — resolve hostname via DNS to catch rebinding
+    try:
+        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for family, _, _, _, sockaddr in results:
+            ip_str = sockaddr[0]
+            try:
+                addr = ipaddress.ip_address(ip_str)
+                if _is_dangerous_addr(addr):
+                    log.warning(f"DNS rebinding blocked: {hostname} resolves to private IP {ip_str}")
+                    return True
+            except ValueError:
+                continue
+    except socket.gaierror:
+        pass  # DNS resolution failed — hostname doesn't resolve, not a rebinding risk
+
+    return False
+
+
+def _is_dangerous_addr(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Check if an IP address is private, loopback, link-local, reserved, or multicast."""
+    return (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+    )
 
 
 def validate_url(url: str, allow_private: bool = False) -> Optional[str]:
@@ -81,7 +110,18 @@ def validate_url(url: str, allow_private: bool = False) -> Optional[str]:
     # Suspicious ports (well-known internal services)
     port = parsed.port
     if port and not allow_private:
-        _blocked_ports = {6379, 11211, 27017, 5432, 3306, 9200, 2379}
+        _blocked_ports = {
+            22,     # SSH
+            23,     # Telnet
+            25,     # SMTP
+            2379,   # etcd
+            3306,   # MySQL
+            5432,   # PostgreSQL
+            6379,   # Redis
+            9200,   # Elasticsearch
+            11211,  # Memcached
+            27017,  # MongoDB
+        }
         if port in _blocked_ports:
             return f"Access to port {port} is blocked (common internal service port)."
 

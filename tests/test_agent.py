@@ -596,23 +596,27 @@ class TestTerminal:
         assert isinstance(result, str)
 
     def test_bg_write(self):
-        from solstice_agent.tools.terminal import run_background, bg_write, bg_kill
+        from solstice_agent.tools.terminal import run_background, bg_write, bg_kill, set_confirm_callback
         import time
-        if sys.platform == "win32":
-            # Windows: use python to read stdin
-            result = run_background('python -c "import sys; print(sys.stdin.readline())"')
-        else:
-            result = run_background("cat")
-        sid = None
-        for word in result.split():
-            if word.startswith("bg_"):
-                sid = word.strip()
-                break
-        assert sid is not None
-        write_result = bg_write(sid, "test_input")
-        assert "Sent" in write_result
-        time.sleep(0.5)
-        bg_kill(sid)
+        # Allow the python -c command through safety check (it's blocked by default)
+        set_confirm_callback(lambda cmd, reason: True)
+        try:
+            if sys.platform == "win32":
+                result = run_background('python -c "import sys; print(sys.stdin.readline())"')
+            else:
+                result = run_background("cat")
+            sid = None
+            for word in result.split():
+                if word.startswith("bg_"):
+                    sid = word.strip()
+                    break
+            assert sid is not None
+            write_result = bg_write(sid, "test_input")
+            assert "Sent" in write_result
+            time.sleep(0.5)
+            bg_kill(sid)
+        finally:
+            set_confirm_callback(None)
 
     # --- Command safety tests ---
 

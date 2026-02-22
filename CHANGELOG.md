@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Core Agent
 - Interactive CLI with REPL mode, one-shot messaging, and session resumption
-- 4 LLM providers: OpenAI (GPT-4o), Anthropic (Claude), Google Gemini, Ollama (local)
+- 4 LLM providers: OpenAI, Anthropic, Google Gemini, Ollama (local)
 - Multimodal image input support across all vision-capable providers
 - LLM-based context compaction (summarization, not hard truncation)
 - Persistent cross-session memory (JSON-backed)

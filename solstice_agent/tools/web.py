@@ -55,9 +55,31 @@ def fetch_url(url: str, max_length: int = 5000) -> str:
         return "Error: URL fetching requires: pip install httpx"
 
     try:
-        resp = httpx.get(url, follow_redirects=True, timeout=15.0, headers={
-            "User-Agent": "Mozilla/5.0 (compatible; SolsticeAgent/0.1)"
-        })
+        # Don't follow redirects automatically — validate each hop
+        # to prevent redirect-based SSRF to private IPs
+        _MAX_REDIRECTS = 5
+        current_url = url
+        resp = None
+        for _ in range(_MAX_REDIRECTS):
+            resp = httpx.get(current_url, follow_redirects=False, timeout=15.0, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; SolsticeAgent/0.1)"
+            })
+            if resp.status_code in (301, 302, 303, 307, 308):
+                redirect_url = resp.headers.get("location", "")
+                if not redirect_url:
+                    break
+                # Resolve relative redirects
+                if redirect_url.startswith("/"):
+                    from urllib.parse import urlparse as _urlparse
+                    p = _urlparse(current_url)
+                    redirect_url = f"{p.scheme}://{p.netloc}{redirect_url}"
+                # Validate the redirect target (blocks private IPs, metadata, etc.)
+                redirect_err = validate_url(redirect_url)
+                if redirect_err:
+                    return f"Error: Redirect blocked — {redirect_err}"
+                current_url = redirect_url
+            else:
+                break
         resp.raise_for_status()
 
         content_type = resp.headers.get("content-type", "")

@@ -10,6 +10,7 @@ Requires: pip install playwright && playwright install chromium
 import json
 import logging
 import os
+import re
 import tempfile
 from typing import Optional
 
@@ -174,12 +175,48 @@ def browser_screenshot(full_page: bool = False) -> str:
 
 # Patterns that indicate dangerous JS operations
 _DANGEROUS_JS_PATTERNS = [
-    "fetch(", "XMLHttpRequest", "navigator.sendBeacon",
-    "window.open(", "document.cookie", "localStorage",
-    "sessionStorage", "indexedDB", "WebSocket(",
-    "importScripts", "eval(", "Function(",
-    "ServiceWorker", "postMessage(", ".src=",
+    "fetch(", "xmlhttprequest", "navigator.sendbeacon",
+    "window.open(", "document.cookie", "localstorage",
+    "sessionstorage", "indexeddb", "websocket(",
+    "importscripts", "eval(", "function(",
+    "serviceworker", "postmessage(", ".src=",
+    # Additional dangerous APIs
+    "navigator.credentials", "document.location", "window.location",
+    ".innerhtml", ".appendchild", ".insertbefore",
+    "new worker(", "sharedworker(",
 ]
+
+# Regex patterns for bracket-notation access to dangerous globals
+_JS_BRACKET_PATTERNS = re.compile(
+    r"""\[\s*['"`](?:fetch|eval|cookie|localStorage|sessionStorage|"""
+    r"""indexedDB|WebSocket|XMLHttpRequest|Function|importScripts|"""
+    r"""sendBeacon|open|location|innerHTML|credentials)['"`]\s*\]""",
+    re.IGNORECASE,
+)
+
+
+def _normalize_js(expression: str) -> str:
+    """Normalize JS expression to defeat obfuscation.
+
+    Handles unicode escapes (\\x28, \\u0028), full-width characters,
+    and string concatenation tricks.
+    """
+    import codecs
+    normalized = expression
+    # Decode \\xNN hex escapes
+    try:
+        normalized = codecs.decode(normalized, 'unicode_escape')
+    except Exception:
+        pass
+    # Normalize full-width characters (U+FF01..U+FF5E → ASCII)
+    result = []
+    for ch in normalized:
+        cp = ord(ch)
+        if 0xFF01 <= cp <= 0xFF5E:
+            result.append(chr(cp - 0xFEE0))
+        else:
+            result.append(ch)
+    return ''.join(result)
 
 
 def browser_eval(expression: str) -> str:
@@ -191,14 +228,23 @@ def browser_eval(expression: str) -> str:
     if not _ensure_browser():
         return "Error: Browser not available."
 
-    # Block dangerous JS patterns
-    expr_lower = expression.lower()
+    # Normalize to defeat unicode/fullwidth obfuscation, then check
+    normalized = _normalize_js(expression)
+    expr_lower = normalized.lower()
+
     for pattern in _DANGEROUS_JS_PATTERNS:
-        if pattern.lower() in expr_lower:
+        if pattern in expr_lower:
             return (
                 f"Error: Expression contains blocked pattern '{pattern}'. "
                 f"browser_eval is restricted to data extraction and page state queries."
             )
+
+    # Check bracket-notation access (window["fetch"](), etc.)
+    if _JS_BRACKET_PATTERNS.search(expression) or _JS_BRACKET_PATTERNS.search(normalized):
+        return (
+            "Error: Expression contains bracket-notation access to a blocked API. "
+            "browser_eval is restricted to data extraction and page state queries."
+        )
 
     try:
         result = _page.evaluate(expression)

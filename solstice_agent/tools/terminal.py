@@ -63,13 +63,19 @@ _DANGEROUS_PATTERNS = [
     # System file modification
     r'\b>\s*/etc/',
     r'\bsudo\s+rm\b',
-    # Interpreter-based evasion
-    r'\bpython[23]?\s+-c\s+["\'].*(?:subprocess|os\.system|os\.popen|shutil\.rmtree|exec|eval)',
+    # Interpreter-based evasion — block shell/script interpreters with inline code
+    r'\bpython[23]?\s+-c\b',
     r'\bnode\s+-e\b',
     r'\bperl\s+-e\b',
     r'\bruby\s+-e\b',
-    # Base64 decode + execute
-    r'\bbase64\s+(-d|--decode)\b.*\|',
+    r'\bpowershell(?:\.exe)?\s+(?:-c|-command|-encodedcommand|-enc)\b',
+    r'\bpwsh(?:\.exe)?\s+(?:-c|-command|-encodedcommand|-enc)\b',
+    r'\bcmd(?:\.exe)?\s+(?:/c|/k)\b',
+    r'\bbash\s+-c\b',
+    r'\bsh\s+-c\b',
+    r'\bzsh\s+-c\b',
+    # Base64 decode + execute (with or without pipe)
+    r'\bbase64\s+(-d|--decode)\b',
     # Network exfiltration
     r'\bnc\s+-[a-zA-Z]*\b',  # netcat
     r'\bncat\b',
@@ -85,6 +91,27 @@ _DANGEROUS_PATTERNS = [
 ]
 
 _DANGEROUS_RE = re.compile('|'.join(_DANGEROUS_PATTERNS), re.IGNORECASE)
+
+
+def _normalize_command(command: str) -> str:
+    """Normalize a command string to defeat obfuscation before safety checks.
+
+    Handles:
+    - ${IFS} and $IFS word-splitting tricks (rm${IFS}-rf)
+    - $'...' ANSI-C quoting
+    - Backslash insertion (r\\m -rf)
+    - Variable concatenation (a=rm; $a -rf /)
+    - Quote stripping (r"m" → rm)
+    """
+    normalized = command
+    # Strip ${IFS}, $IFS (shell word-splitting trick)
+    normalized = re.sub(r'\$\{?IFS\}?', ' ', normalized)
+    # Strip inserted backslashes (r\m → rm)
+    normalized = re.sub(r'\\(?=[a-zA-Z])', '', normalized)
+    # Strip single/double quotes used to break up tokens (r"m" → rm, r''m → rm)
+    normalized = re.sub(r"""(?<=[a-zA-Z])(['"])(?=[a-zA-Z])""", '', normalized)
+    normalized = re.sub(r"""(['"])(?=[a-zA-Z])""", '', normalized)
+    return normalized
 
 # Maximum number of concurrent background processes
 _MAX_BACKGROUND_PROCESSES = 10
@@ -110,10 +137,48 @@ def check_command_safety(command: str) -> Optional[str]:
     """
     Check if a command matches dangerous patterns.
     Returns a warning string if dangerous, None if safe.
+
+    Checks both the raw command and a normalized version (to defeat
+    obfuscation like ${IFS}, backslash insertion, quote splitting).
+    Also splits on shell metacharacters (;, |, &&, ||) to check each
+    segment independently — prevents hiding dangerous commands behind
+    benign prefixes in a chain.
     """
+    # Check the raw command first
     match = _DANGEROUS_RE.search(command)
     if match:
         return f"Potentially destructive pattern detected: {match.group()}"
+
+    # Normalize and check again (defeats IFS, backslash, quote tricks)
+    normalized = _normalize_command(command)
+    if normalized != command:
+        match = _DANGEROUS_RE.search(normalized)
+        if match:
+            return f"Potentially destructive pattern detected (obfuscated): {match.group()}"
+
+    # Split on shell metacharacters and check each segment
+    # This catches: "echo hi; rm -rf /", "cat file | bash", "safe && dangerous"
+    segments = re.split(r'\s*(?:;|&&|\|\||\|)\s*', command)
+    for segment in segments:
+        segment = segment.strip()
+        if not segment:
+            continue
+        match = _DANGEROUS_RE.search(segment)
+        if match:
+            return f"Potentially destructive pattern in chained command: {match.group()}"
+        norm_seg = _normalize_command(segment)
+        if norm_seg != segment:
+            match = _DANGEROUS_RE.search(norm_seg)
+            if match:
+                return f"Potentially destructive pattern in chained command (obfuscated): {match.group()}"
+
+    # Check for $() and backtick command substitution containing dangerous patterns
+    subcommands = re.findall(r'\$\((.+?)\)', command) + re.findall(r'`(.+?)`', command)
+    for sub in subcommands:
+        match = _DANGEROUS_RE.search(sub)
+        if match:
+            return f"Potentially destructive pattern in subcommand: {match.group()}"
+
     return None
 
 

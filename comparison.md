@@ -3,7 +3,7 @@
 |                      | OpenClaw                          | Sol (Solstice Agent)                    |
 |----------------------|-----------------------------------|-----------------------------------------|
 | **Tools**            | ~25 (file access, scripts)        | **72** built-in                         |
-| **Codebase**         | ~430K lines                       | **~8K lines** — 50x less code           |
+| **Codebase**         | ~430K lines                       | **~12K lines** — 35x less code          |
 | **Install**          | Docker required                   | `pip install solstice-agent`            |
 | **Providers**        | Primarily OpenAI                  | OpenAI, Anthropic, Gemini, Ollama       |
 | **Security**         | CVE-2026-25253 RCE, 30K exposed   | 9 security layers, 0 CVEs              |
