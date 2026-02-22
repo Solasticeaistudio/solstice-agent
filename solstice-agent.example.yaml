@@ -1,0 +1,55 @@
+# Solstice Agent Configuration
+# ============================
+# Copy this to solstice-agent.yaml and customize.
+# Env vars override these values (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
+
+# --- LLM Provider ---
+# Options: openai, anthropic, gemini, ollama
+provider: openai
+model: gpt-4o
+api_key: ""  # Or set OPENAI_API_KEY env var
+
+# For Anthropic:
+# provider: anthropic
+# model: claude-sonnet-4-5-20250929
+# api_key: ""  # Or set ANTHROPIC_API_KEY env var
+
+# For Gemini:
+# provider: gemini
+# model: gemini-2.5-flash
+# api_key: ""  # Or set GEMINI_API_KEY env var
+
+# For local models (Ollama — no key needed):
+# provider: ollama
+# model: llama3.1
+# ollama_base_url: http://localhost:11434
+
+# For OpenAI-compatible APIs (LMStudio, Together, etc.):
+# provider: openai
+# model: your-model-name
+# base_url: http://localhost:1234/v1
+
+# --- Agent ---
+personality_name: default  # default or coder
+temperature: 0.7
+max_tokens: 4096
+
+# --- Tools ---
+enable_terminal: true    # Shell command execution
+enable_web: true         # Web search + URL fetching
+enable_registry: true    # API registry/marketplace (25 pre-loaded APIs)
+
+# --- Gateway (messaging channels) ---
+# gateway_enabled: false
+# gateway_channels:
+#   telegram:
+#     enabled: true
+#     bot_token: "your-telegram-bot-token"
+#   discord:
+#     enabled: true
+#     bot_token: "your-discord-bot-token"
+#     channel_ids: "123456789"
+#   slack:
+#     enabled: true
+#     bot_token: "xoxb-your-slack-token"
+#     signing_secret: "your-signing-secret"

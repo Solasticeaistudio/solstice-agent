@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solstice-agent"
+version = "0.1.0"
+description = "AI agent framework with real tool use and a 21-channel messaging gateway. Not a chatbot wrapper."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    {name = "Solstice Studio"},
+]
+keywords = ["ai", "agent", "llm", "tools", "gateway", "chatbot", "openai", "anthropic", "gemini", "ollama"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Communications :: Chat",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dependencies = [
+    "httpx>=0.25.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0"]
+anthropic = ["anthropic>=0.30"]
+gemini = ["google-genai>=1.0"]
+all-providers = ["openai>=1.0", "anthropic>=0.30", "google-genai>=1.0"]
+gateway = ["flask>=3.0", "discord.py>=2.3", "slack-sdk>=3.26"]
+web = ["duckduckgo-search>=6.0"]
+voice = ["elevenlabs>=1.0", "openai>=1.0", "sounddevice>=0.4", "numpy>=1.24"]
+browser = ["playwright>=1.40"]
+screen = ["mss>=9.0", "Pillow>=10.0"]
+docker = ["docker>=7.0"]
+recording = ["mss>=9.0", "opencv-python-headless>=4.8", "Pillow>=10.0"]
+tray = ["pystray>=0.19", "Pillow>=10.0", "plyer>=2.1", "pyperclip>=1.8"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+all = [
+    "openai>=1.0",
+    "anthropic>=0.30",
+    "google-genai>=1.0",
+    "flask>=3.0",
+    "discord.py>=2.3",
+    "slack-sdk>=3.26",
+    "duckduckgo-search>=6.0",
+    "elevenlabs>=1.0",
+    "playwright>=1.40",
+    "sounddevice>=0.4",
+    "numpy>=1.24",
+    "mss>=9.0",
+    "Pillow>=10.0",
+    "docker>=7.0",
+    "opencv-python-headless>=4.8",
+    "pystray>=0.19",
+    "plyer>=2.1",
+    "pyperclip>=1.8",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+solstice-agent = "solstice_agent.cli:main"
+solstice-gateway = "solstice_agent.server:main"
+solstice-tray = "solstice_agent.tray:main"
+
+[project.urls]
+Homepage = "https://github.com/solstice-studio/solstice-agent"
+Documentation = "https://github.com/solstice-studio/solstice-agent#readme"
+Repository = "https://github.com/solstice-studio/solstice-agent"
+Issues = "https://github.com/solstice-studio/solstice-agent/issues"
+Changelog = "https://github.com/solstice-studio/solstice-agent/blob/main/CHANGELOG.md"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]  # Line length handled by formatter, not linter
+
+[tool.setuptools.packages.find]
+include = ["solstice_agent*"]
