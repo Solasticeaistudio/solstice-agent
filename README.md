@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="assets/solstice-logo.png" alt="Solstice Agent" width="200">
+  <img src="assets/solstice-logo.png" alt="Sol" width="200">
 </p>
 
-<h1 align="center">Solstice Agent</h1>
+<h1 align="center">Sol</h1>
 
-<p align="center">An AI agent framework that actually does things.</p>
+<p align="center">Your personal AI agent. Install it, talk to it, let it work.</p>
 
 <p align="center">
   <a href="https://pypi.org/project/solstice-agent/"><img src="https://img.shields.io/pypi/v/solstice-agent?color=8b5cf6&style=flat-square" alt="PyPI"></a>
@@ -13,7 +13,7 @@
   <a href="https://github.com/Solasticeaistudio/solstice-agent/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Solasticeaistudio/solstice-agent/ci.yml?style=flat-square&label=CI" alt="CI"></a>
 </p>
 
-Not a chatbot wrapper. Not a webhook proxy. An autonomous agent with 72 built-in tools, 4 LLM providers, multi-agent routing, headless browser control, voice (TTS/STT), persistent memory, multimodal vision, autonomous API discovery, a skill system, cron scheduling, LLM context compaction — and a 21-channel messaging gateway.
+Sol runs on your machine, remembers your conversations, talks to you by voice, browses the web, controls your terminal, discovers APIs on its own, and reaches you on 21 messaging platforms. It ships with 72 built-in tools, 4 LLM providers (including fully local via Ollama), persistent memory, wake word detection, cron scheduling, Docker sandboxing, and defense-in-depth security. Two commands to install. No Docker required. No cloud account needed.
 
 ```
 pip install solstice-agent
@@ -29,7 +29,7 @@ solstice-agent
 ```
 
 ```
-Solstice Agent v0.1.0
+Sol v0.1.1
 openai / gpt-4o
 Tools: 72 loaded | Streaming: on
 
@@ -55,9 +55,9 @@ The agent doesn't guess. It uses tools.
 
 ---
 
-## Why This Exists
+## What Sol Does
 
-Most agent frameworks give you a chat wrapper with 5 tools and call it a day. Solstice Agent ships with 72 built-in tools, 21 messaging channels, 4 LLM providers, autonomous API discovery, voice, vision, Docker sandboxing, persistent memory, and defense-in-depth security — out of the box.
+Sol is a personal AI agent that lives on your machine. It doesn't just answer questions — it takes action. It reads and edits your files, runs your builds, browses websites, captures your screen, records video, discovers and connects to APIs autonomously, listens for your voice, schedules tasks while you sleep, and reaches you on WhatsApp, Discord, Slack, Telegram, or 17 other platforms. Everything runs locally. Your data stays yours.
 
 ---
 
@@ -203,7 +203,7 @@ Ships with 25 pre-loaded APIs across 9 categories (weather, communication, payme
 
 ## Skills System
 
-Teach Sol new workflows by dropping markdown files into `~/.solstice-agent/skills/`.
+Teach Sol new workflows by dropping markdown files into `~/.solstice-agent/skills/`. No code required.
 
 ```markdown
 ---
@@ -255,7 +255,7 @@ Results deliver to any gateway channel or save to `~/.solstice-agent/cron/result
 
 ## Context Compaction
 
-Instead of hard-trimming conversation history at 40 messages (losing all context), Sol summarizes older messages into a compact digest when approaching the model's context window.
+Instead of hard-trimming conversation history (losing all context), Sol summarizes older messages into a compact digest when approaching the model's context window. You get long conversations without losing important details.
 
 - Automatic — triggers at 75% of the model's context window
 - Preserves key facts, decisions, file paths, errors, and user preferences
@@ -600,7 +600,7 @@ solstice_agent/
 
 ## Security
 
-Solstice Agent treats security as a first-class concern — not an afterthought. Every tool category has layered defenses.
+Sol treats security as a first-class concern — not an afterthought. Every tool category has layered defenses.
 
 ### Network (SSRF Protection)
 All outbound HTTP tools (`fetch_url`, `blackbox_connect`, `browser_navigate`) are gated by `validate_url()`:
@@ -713,4 +713,4 @@ MIT. Use it, fork it, build on it.
 
 ---
 
-Built by [Solstice Studio](https://solsticestudio.ai). The same team behind IRIS, Helios, Ares, Sentinel, and the Solstice Enterprise Intelligence Mesh.
+Built by [Solstice Studio](https://solsticestudio.ai).
