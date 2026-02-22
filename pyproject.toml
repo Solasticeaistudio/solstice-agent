@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solstice-agent"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI agent framework with real tool use and a 21-channel messaging gateway. Not a chatbot wrapper."
 readme = "README.md"
 license = "MIT"
