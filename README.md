@@ -57,25 +57,7 @@ The agent doesn't guess. It uses tools.
 
 ## Why This Exists
 
-OpenAI paid $205M for OpenClaw — an open-source project that routes messages from messaging platforms to an LLM and pipes the response back. That's a webhook proxy with a personality layer.
-
-Solstice Agent is what an AI agent framework should actually look like:
-
-| | OpenClaw | Solstice Agent |
-|---|---------|---------------|
-| Tools | File access, scripts | 72 built-in (files, terminal, web, browser, voice, screen capture, recording, Docker sandbox, presence, memory, API discovery, API registry, skills, cron) |
-| API discovery | None — write a skill per API | **Autonomous** — point at any URL, it maps and operates it. Registry with 25 pre-loaded APIs searchable by capability |
-| Browser | Sandboxed automation | Full Playwright (navigate, click, type, screenshot, JS eval) |
-| Voice | ElevenLabs TTS | ElevenLabs TTS + Whisper STT (bidirectional) |
-| Vision | Not built-in | Native multimodal — pass images to any provider |
-| Memory | Markdown files | JSON persistence — facts + conversations, cross-session |
-| Providers | Primarily OpenAI | OpenAI, Anthropic, Gemini, Ollama (local) |
-| Channels | ~21 | **21** (WhatsApp, Telegram, Discord, Slack, Email, Teams, iMessage, Signal, Matrix, Google Chat, IRC, Mattermost, LINE, Twitch, Messenger, Twitter/X, Reddit, Nostr, WebChat, Feishu/Lark, Generic Webhook) |
-| Multi-agent | Full workspace isolation | **Config-driven routing** — per-agent tools, personality, provider, per-sender isolation |
-| Context management | Hard trim at 128K | **LLM-summarized compaction** — preserves key facts across long sessions |
-| Security | [CVE-2026-25253 RCE](https://creati.ai/ai-news/2026-02-11/openclaw-open-source-ai-agent-viral-145k-github-stars/), 30K exposed instances, 20% malicious skills | **Defense-in-depth** — SSRF protection, path sandboxing, gateway auth, container isolation, command safety, input sanitization ([details](#security)) |
-| Install | Docker required | `pip install` and go |
-| Codebase | ~430K lines | **~8K lines** — same capabilities, 50x less code |
+Most agent frameworks give you a chat wrapper with 5 tools and call it a day. Solstice Agent ships with 72 built-in tools, 21 messaging channels, 4 LLM providers, autonomous API discovery, voice, vision, Docker sandboxing, persistent memory, and defense-in-depth security — out of the box.
 
 ---
 
