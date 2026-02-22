@@ -74,11 +74,11 @@ solstice-gateway = "solstice_agent.server:main"
 solstice-tray = "solstice_agent.tray:main"
 
 [project.urls]
-Homepage = "https://github.com/solstice-studio/solstice-agent"
-Documentation = "https://github.com/solstice-studio/solstice-agent#readme"
-Repository = "https://github.com/solstice-studio/solstice-agent"
-Issues = "https://github.com/solstice-studio/solstice-agent/issues"
-Changelog = "https://github.com/solstice-studio/solstice-agent/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Solasticeaistudio/solstice-agent"
+Documentation = "https://github.com/Solasticeaistudio/solstice-agent#readme"
+Repository = "https://github.com/Solasticeaistudio/solstice-agent"
+Issues = "https://github.com/Solasticeaistudio/solstice-agent/issues"
+Changelog = "https://github.com/Solasticeaistudio/solstice-agent/blob/main/CHANGELOG.md"
 
 [tool.ruff]
 line-length = 120
