@@ -1,6 +1,10 @@
-# Solstice Agent
+<p align="center">
+  <img src="assets/solstice-logo.svg" alt="Solstice Agent" width="400">
+</p>
 
-An AI agent framework that actually does things.
+<h1 align="center">Solstice Agent</h1>
+
+<p align="center">An AI agent framework that actually does things.</p>
 
 Not a chatbot wrapper. Not a webhook proxy. An autonomous agent with 72 built-in tools, 4 LLM providers, multi-agent routing, headless browser control, voice (TTS/STT), persistent memory, multimodal vision, autonomous API discovery, a skill system, cron scheduling, LLM context compaction — and a 21-channel messaging gateway.
 

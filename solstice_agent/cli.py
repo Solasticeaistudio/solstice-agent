@@ -282,15 +282,46 @@ def _stream_response(agent: Agent, message: str, images=None):
                 print()
 
 
+BANNER = f"""{CYAN}
+                   -j:
+              <c)  {{z-  I`      ?z]
+              ^/X> ,c] "rI ^f}} ~ct" `1|
+            i{{ ,c{{  !; .,. ^_ ^/(' >cnl
+         .  .j}}      .'```'.      in|'
+    lI   \\r;     !)vL00OZOO0Qz|<     "\\x"
+    -cz)' ";  :rQ00000mmmqb#&&hZLv>  ^^
+      +jx^  "u0000000000000000w#%hZUI   1n1
+ lnu\\>     -C0000000000000000000Oh8kQ).   "]tuc-
+   ,\\zz~  <L0000000000000000000000m&#0\\  +/|_'
+   ^;`   ;Y000000000000000000000000O&h0[    ^;!!;
+   ,])_  rJ000000c|jQ0000000Lt\\X0000qh0C, "jcXu/>
+        ;uU00000t_mw?L00000U_)#|c0000kqL+
+  `fn\\^ ivYQ0000U|-~x000000Qfji[L000000Q[  1xx;
+        ;vXC000000000000000000000000000Q+
+I|uXzu>  rXYQ00000000000000000000000000C" >)}};
+,iil"    IzXYL000000000000000000000000Q?   .;:
+   .<(/)}}  >XXXJQ000000000000000000000L}}  :vcf!
+ iuvj1:    ~cXXXJQ0000000000000000QCX[.    l|xv+
+      _x/^  ^tXXXXYJL0000000000QCYXn:  .\\r].
+          .^  "|zXXXXXXXXYYXXXXXzjI  ,,  ?zz1.
+        ./rI     I}}jcXXXXXXXzr1>  .  ^\\n`  :!.
+         .  [u?      .`^^^`'      +x,  .
+          "jz[  ?r; <;  "' ^<  +z> _?
+          ]|: ')X{{ >nI "xl <z< :cxI
+              >v\\   .  .l' ivr  <X[          [L>
+                           `\\\\{RESET}"""
+
+
 def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, stream=True):
     """Interactive REPL."""
     label = f" [{agent_label}]" if agent_label else ""
-    print(f"\n{BOLD}{CYAN}Solstice Agent{RESET}{label} {DIM}v0.1.0{RESET}")
-    print(f"{DIM}{agent.provider.name()} / {agent.personality.name}{RESET}")
+    print(BANNER)
+    print(f"  {BOLD}{CYAN}Solstice Agent{RESET}{label} {DIM}v0.1.0{RESET}")
+    print(f"  {DIM}{agent.provider.name()} / {agent.personality.name}{RESET}")
     tool_names = [s['name'] for s in agent._tool_schemas] if agent._tool_schemas else ['none']
     streaming_label = "on" if stream else "off"
-    print(f"{DIM}Tools: {len(tool_names)} loaded | Streaming: {streaming_label}{RESET}")
-    print(f"{DIM}Type 'exit' to quit, 'clear' to reset, 'tools' to list{RESET}\n")
+    print(f"  {DIM}Tools: {len(tool_names)} loaded | Streaming: {streaming_label}{RESET}")
+    print(f"  {DIM}Type 'exit' to quit, 'clear' to reset, 'tools' to list{RESET}\n")
 
     while True:
         try:
