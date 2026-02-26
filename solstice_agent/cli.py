@@ -108,13 +108,26 @@ def main():
 
     set_confirm_callback(_cli_confirm)
 
-    # Validate
+    # Validate — offer setup wizard if no API key configured
     if config.provider != "ollama" and not config.api_key:
-        print(f"{YELLOW}No API key found.{RESET}")
-        print("Set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY")
-        print("Or use --api-key, or create a solstice-agent.yaml config file.")
-        print("Or use --provider ollama for local models (no key needed).")
-        sys.exit(1)
+        print(f"\n{YELLOW}No API key configured.{RESET}")
+        print(f"{DIM}Sol needs an LLM provider to think. Let's fix that.{RESET}\n")
+        try:
+            answer = input(f"  Run the setup wizard? [Y/n] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = "n"
+        if answer in ("", "y", "yes"):
+            from .setup import run_setup
+            run_setup()
+            # Reload config after setup
+            config = Config.load(args.config)
+            if config.provider != "ollama" and not config.api_key:
+                print(f"\n{YELLOW}Setup didn't configure an API key. Exiting.{RESET}")
+                sys.exit(1)
+        else:
+            print(f"\n{DIM}You can run setup later with: solstice-agent --setup{RESET}")
+            print(f"{DIM}Or set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY{RESET}")
+            sys.exit(1)
 
     # List agents (if multi-agent configured)
     if args.list_agents:
