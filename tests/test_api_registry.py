@@ -51,7 +51,7 @@ class TestSeedCatalog:
         from solstice_agent.tools.api_registry import _SEED_CATALOG
         data = json.loads(_SEED_CATALOG.read_text(encoding="utf-8"))
         assert isinstance(data, dict)
-        assert len(data) == 25
+        assert len(data) == 26
 
     def test_seed_catalog_required_fields(self):
         from solstice_agent.tools.api_registry import _SEED_CATALOG
@@ -78,7 +78,7 @@ class TestSeedCatalog:
     def test_seed_catalog_auth_types_valid(self):
         from solstice_agent.tools.api_registry import _SEED_CATALOG
         data = json.loads(_SEED_CATALOG.read_text(encoding="utf-8"))
-        valid = {"bearer", "basic", "api_key", "none"}
+        valid = {"bearer", "basic", "api_key", "none", "oauth2_client_credentials"}
         for name, entry in data.items():
             assert entry["auth_type"] in valid, \
                 f"API '{name}' invalid auth_type: {entry['auth_type']}"
@@ -107,7 +107,7 @@ class TestCatalogLoading:
     def test_first_run_seeds_catalog(self, isolated_registry):
         from solstice_agent.tools.api_registry import _load_catalog
         catalog = _load_catalog()
-        assert len(catalog) == 25
+        assert len(catalog) == 26
         assert "twilio" in catalog
         assert "stripe" in catalog
 

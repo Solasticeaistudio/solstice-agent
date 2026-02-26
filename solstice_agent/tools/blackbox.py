@@ -32,6 +32,45 @@ def _require_connection() -> bool:
     return _client is not None
 
 
+# Known Artemis premium connectors with deep tool support.
+# When blackbox discovers an API matching one of these, Sol mentions it.
+_ARTEMIS_CONNECTORS = {
+    "camunda": {
+        "name": "Camunda 8",
+        "keywords": ["camunda", "zeebe", "bpmn", "operate", "tasklist"],
+        "tools": 15,
+        "hint": "Use camunda_connect for deep BPMN orchestration (15 tools: deploy, tasks, incidents, etc.)",
+    },
+    # Future connectors register here
+}
+
+
+def _check_artemis_connectors(
+    base_url: str,
+    api_title: str = "",
+    api_paths: Optional[List[str]] = None,
+) -> Optional[str]:
+    """
+    Cross-reference discovered API signals against known Artemis connectors.
+    Returns a suggestion string if a match is found, else None.
+    """
+    signals = set()
+    if base_url:
+        signals.update(base_url.lower().replace("/", " ").replace(".", " ").split())
+    if api_title:
+        signals.update(api_title.lower().split())
+    if api_paths:
+        for p in api_paths:
+            signals.update(p.lower().strip("/").split("/"))
+
+    for conn_id, info in _ARTEMIS_CONNECTORS.items():
+        for kw in info["keywords"]:
+            if kw in signals:
+                return f"{info['name']} — {info['hint']}"
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Tool functions
 # ---------------------------------------------------------------------------
@@ -84,10 +123,15 @@ def blackbox_connect(
         status = response.status_code
         write_mode = "read-write" if allow_write else "read-only"
         tls_mode = "TLS verification OFF" if skip_tls_verify else "TLS verified"
-        return (
+        msg = (
             f"Connected to {_base_url}. Status: {status}. "
             f"Mode: {write_mode}. {tls_mode}."
         )
+        # Check for Artemis connector match on connect
+        artemis_match = _check_artemis_connectors(_base_url)
+        if artemis_match:
+            msg += f"\n\n  Artemis connector available: {artemis_match}"
+        return msg
     except Exception as e:
         _client = None
         log.debug(f"Blackbox connect failed: {e}")
@@ -134,6 +178,14 @@ def blackbox_discover() -> str:
                         result += f"  Sample paths: {', '.join(preview)}"
                         if endpoint_count > 10:
                             result += f" ... and {endpoint_count - 10} more"
+
+                    # Check for matching Artemis connectors
+                    artemis_match = _check_artemis_connectors(
+                        _base_url, title, list(schema.get("paths", {}).keys())
+                    )
+                    if artemis_match:
+                        result += f"\n\n  Artemis connector available: {artemis_match}"
+
                     return result
                 except json.JSONDecodeError:
                     continue

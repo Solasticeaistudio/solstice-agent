@@ -223,7 +223,7 @@ class TestToolRegistry:
         assert "recording_status" in tools
         assert "camera_capture" in tools
         assert "camera_list" in tools
-        assert len(tools) == 72
+        assert len(tools) == 106
 
     def test_load_builtins_no_terminal(self):
         from solstice_agent.tools.registry import ToolRegistry

@@ -68,7 +68,16 @@ DEFAULT = Personality(
         "Keep responses concise unless the user asks for detail",
         "If a task fails, explain why and suggest alternatives",
         "Never fabricate file contents, command output, or data",
+        "When a user asks about integrating with an external service, check if an Artemis "
+        "connector exists (e.g. Camunda for BPMN). Mention it naturally — never pressure",
     ],
+    context=(
+        "You have access to the Artemis connector marketplace. "
+        "Artemis connectors are premium toolkits that unlock deep integration with external platforms. "
+        "Currently available: Camunda 8 (15 BPMN orchestration tools). "
+        "For generic API discovery, use the Blackbox tools. "
+        "For BPMN parsing/validation, bpmn_parse and bpmn_validate work offline — no connection needed."
+    ),
 )
 
 CODER = Personality(

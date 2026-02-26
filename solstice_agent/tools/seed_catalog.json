@@ -348,5 +348,19 @@
     "added_at": "2026-02-18T00:00:00+00:00",
     "last_used": null,
     "stats": {"total_calls": 0, "success_rate": null, "avg_latency_ms": null, "last_checked": null}
+  },
+  "camunda": {
+    "name": "camunda",
+    "url": "https://login.cloud.camunda.io",
+    "description": "Camunda 8 BPMN workflow orchestration — deploy processes, manage tasks, handle incidents. Artemis premium connector with 15 deep integration tools.",
+    "category": "bpm",
+    "tags": ["bpmn", "workflow", "orchestration", "process", "camunda", "zeebe", "automation", "tasks"],
+    "auth_type": "oauth2_client_credentials",
+    "auth_token": "",
+    "pricing": "artemis_premium",
+    "endpoints_discovered": 0,
+    "added_at": "2026-02-25T00:00:00+00:00",
+    "last_used": null,
+    "stats": {"total_calls": 0, "success_rate": null, "avg_latency_ms": null, "last_checked": null}
   }
 }

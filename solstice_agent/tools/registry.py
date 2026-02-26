@@ -47,6 +47,8 @@ class ToolRegistry:
         enable_voice_continuous: bool = True,
         enable_presence: bool = True,
         enable_recording: bool = True,
+        enable_outreach: bool = True,
+        enable_camunda: bool = True,
     ):
         """Load all built-in tool sets."""
         from .file_ops import register_file_tools
@@ -108,6 +110,14 @@ class ToolRegistry:
         if enable_recording:
             from .recording import register_recording_tools
             register_recording_tools(self)
+
+        if enable_outreach:
+            from ..outreach.tools import register_outreach_tools
+            register_outreach_tools(self)
+
+        if enable_camunda:
+            from .camunda import register_camunda_tools
+            register_camunda_tools(self)
 
         log.info(f"Loaded {len(self._handlers)} built-in tools")
 
