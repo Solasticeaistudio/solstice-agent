@@ -39,7 +39,7 @@ _ARTEMIS_CONNECTORS = {
         "name": "Camunda 8",
         "keywords": ["camunda", "zeebe", "bpmn", "operate", "tasklist"],
         "tools": 15,
-        "hint": "Use camunda_connect for deep BPMN orchestration (15 tools: deploy, tasks, incidents, etc.)",
+        "hint": "Install the Artemis Camunda connector for deep BPMN orchestration: pip install artemis-connectors",
     },
     # Future connectors register here
 }

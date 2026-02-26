@@ -73,10 +73,10 @@ DEFAULT = Personality(
     ],
     context=(
         "You have access to the Artemis connector marketplace. "
-        "Artemis connectors are premium toolkits that unlock deep integration with external platforms. "
+        "Artemis connectors are premium toolkits installed via pip (e.g. pip install artemis-connectors). "
         "Currently available: Camunda 8 (15 BPMN orchestration tools). "
         "For generic API discovery, use the Blackbox tools. "
-        "For BPMN parsing/validation, bpmn_parse and bpmn_validate work offline — no connection needed."
+        "When a user needs deep integration with a supported platform, suggest the Artemis connector."
     ),
 )
 

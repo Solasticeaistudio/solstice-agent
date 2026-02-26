@@ -48,7 +48,6 @@ class ToolRegistry:
         enable_presence: bool = True,
         enable_recording: bool = True,
         enable_outreach: bool = True,
-        enable_camunda: bool = True,
     ):
         """Load all built-in tool sets."""
         from .file_ops import register_file_tools
@@ -115,11 +114,25 @@ class ToolRegistry:
             from ..outreach.tools import register_outreach_tools
             register_outreach_tools(self)
 
-        if enable_camunda:
-            from .camunda import register_camunda_tools
-            register_camunda_tools(self)
+        # Auto-discover installed Artemis connectors (pip install artemis-connectors)
+        self._load_artemis_connectors()
 
         log.info(f"Loaded {len(self._handlers)} built-in tools")
+
+    def _load_artemis_connectors(self):
+        """Auto-discover installed Artemis connectors via entry_points."""
+        try:
+            from importlib.metadata import entry_points
+            eps = entry_points(group="solstice_agent.connectors")
+            for ep in eps:
+                try:
+                    register_fn = ep.load()
+                    register_fn(self)
+                    log.info(f"Artemis connector loaded: {ep.name}")
+                except Exception as e:
+                    log.warning(f"Failed to load Artemis connector '{ep.name}': {e}")
+        except Exception as e:
+            log.debug(f"Artemis connector discovery skipped: {e}")
 
     def apply(self, agent):
         """Register all tools with an Agent instance."""
