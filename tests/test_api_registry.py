@@ -51,7 +51,7 @@ class TestSeedCatalog:
         from solstice_agent.tools.api_registry import _SEED_CATALOG
         data = json.loads(_SEED_CATALOG.read_text(encoding="utf-8"))
         assert isinstance(data, dict)
-        assert len(data) == 26
+        assert len(data) == 30
 
     def test_seed_catalog_required_fields(self):
         from solstice_agent.tools.api_registry import _SEED_CATALOG
@@ -107,7 +107,7 @@ class TestCatalogLoading:
     def test_first_run_seeds_catalog(self, isolated_registry):
         from solstice_agent.tools.api_registry import _load_catalog
         catalog = _load_catalog()
-        assert len(catalog) == 26
+        assert len(catalog) == 30
         assert "twilio" in catalog
         assert "stripe" in catalog
 

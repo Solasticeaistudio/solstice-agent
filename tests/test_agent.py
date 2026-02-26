@@ -223,9 +223,8 @@ class TestToolRegistry:
         assert "recording_status" in tools
         assert "camera_capture" in tools
         assert "camera_list" in tools
-        # 91 built-in + 15 if artemis-connectors installed
+        # 91 built-in + up to 75 from Artemis connectors (5 x 15 tools each)
         assert len(tools) >= 91
-        assert len(tools) in (91, 106)
 
     def test_load_builtins_no_terminal(self):
         from solstice_agent.tools.registry import ToolRegistry

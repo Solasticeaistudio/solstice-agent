@@ -362,5 +362,61 @@
     "added_at": "2026-02-25T00:00:00+00:00",
     "last_used": null,
     "stats": {"total_calls": 0, "success_rate": null, "avg_latency_ms": null, "last_checked": null}
+  },
+  "salesforce": {
+    "name": "salesforce",
+    "url": "https://login.salesforce.com",
+    "description": "Salesforce CRM — SOQL queries, record CRUD, bulk operations, flows, reports. Artemis premium connector with 15 deep integration tools.",
+    "category": "crm",
+    "tags": ["crm", "salesforce", "soql", "sobject", "leads", "opportunities", "accounts", "automation"],
+    "auth_type": "oauth2_client_credentials",
+    "auth_token": "",
+    "pricing": "artemis_premium",
+    "endpoints_discovered": 0,
+    "added_at": "2026-02-25T00:00:00+00:00",
+    "last_used": null,
+    "stats": {"total_calls": 0, "success_rate": null, "avg_latency_ms": null, "last_checked": null}
+  },
+  "hubspot": {
+    "name": "hubspot",
+    "url": "https://api.hubapi.com",
+    "description": "HubSpot CRM — contacts, deals, companies, pipelines, notes. Artemis premium connector with 15 deep integration tools.",
+    "category": "crm",
+    "tags": ["crm", "hubspot", "contacts", "deals", "marketing", "sales", "pipelines", "inbound"],
+    "auth_type": "bearer",
+    "auth_token": "",
+    "pricing": "artemis_premium",
+    "endpoints_discovered": 0,
+    "added_at": "2026-02-25T00:00:00+00:00",
+    "last_used": null,
+    "stats": {"total_calls": 0, "success_rate": null, "avg_latency_ms": null, "last_checked": null}
+  },
+  "servicenow": {
+    "name": "servicenow",
+    "url": "https://dev.service-now.com",
+    "description": "ServiceNow ITSM — incidents, changes, CMDB, table API. Artemis premium connector with 15 deep integration tools.",
+    "category": "itsm",
+    "tags": ["itsm", "servicenow", "incidents", "changes", "cmdb", "tickets", "it-operations", "automation"],
+    "auth_type": "basic",
+    "auth_token": "",
+    "pricing": "artemis_premium",
+    "endpoints_discovered": 0,
+    "added_at": "2026-02-25T00:00:00+00:00",
+    "last_used": null,
+    "stats": {"total_calls": 0, "success_rate": null, "avg_latency_ms": null, "last_checked": null}
+  },
+  "jira": {
+    "name": "jira",
+    "url": "https://atlassian.net",
+    "description": "Atlassian Jira — JQL search, issue CRUD, transitions, sprints, boards. Artemis premium connector with 15 deep integration tools.",
+    "category": "project-management",
+    "tags": ["jira", "atlassian", "issues", "sprints", "agile", "boards", "project-management", "tickets"],
+    "auth_type": "basic",
+    "auth_token": "",
+    "pricing": "artemis_premium",
+    "endpoints_discovered": 0,
+    "added_at": "2026-02-25T00:00:00+00:00",
+    "last_used": null,
+    "stats": {"total_calls": 0, "success_rate": null, "avg_latency_ms": null, "last_checked": null}
   }
 }
