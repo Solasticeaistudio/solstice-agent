@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 from .store import get_store
-from .models import Lead, LeadStage, EmailMessage, Conversation
+from .models import LeadStage, EmailMessage, Conversation
 
 log = logging.getLogger("solstice.outreach.composer")
 

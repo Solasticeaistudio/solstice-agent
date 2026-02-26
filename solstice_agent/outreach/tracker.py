@@ -7,7 +7,6 @@ Inbox monitoring for outreach replies. Matches replies to leads, detects opt-out
 import logging
 import os
 import re
-from typing import List
 
 from .store import get_store
 from .models import LeadStage, EmailMessage, Conversation

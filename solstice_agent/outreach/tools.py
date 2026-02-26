@@ -5,10 +5,9 @@ Outreach Tools
 """
 
 import logging
-from typing import Optional
 
 from .store import get_store
-from .models import Campaign, CampaignType, CampaignStatus, LeadStage
+from .models import Campaign, CampaignType, LeadStage
 from .prospector import prospect_search, prospect_research, prospect_qualify, prospect_add
 from .composer import outreach_compose, outreach_send
 from .tracker import check_inbox_for_replies, get_pending_replies

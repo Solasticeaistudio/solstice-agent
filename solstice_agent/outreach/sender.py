@@ -27,8 +27,8 @@ def check_send_allowed(campaign_id: str = "") -> tuple:
             today_leads = store.list_leads(campaign_id=campaign_id)
             today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             today_sends = sum(
-                1 for l in today_leads
-                if l.last_contacted and l.last_contacted[:10] == today_str
+                1 for ld in today_leads
+                if ld.last_contacted and ld.last_contacted[:10] == today_str
             )
             if today_sends >= campaign.daily_send_limit:
                 return False, f"Campaign daily limit reached ({campaign.daily_send_limit})"

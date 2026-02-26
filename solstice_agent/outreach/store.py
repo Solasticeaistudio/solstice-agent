@@ -93,11 +93,11 @@ class OutreachStore:
     ) -> List[Lead]:
         leads = list(self._leads.values())
         if campaign_id:
-            leads = [l for l in leads if l.campaign_id == campaign_id]
+            leads = [ld for ld in leads if ld.campaign_id == campaign_id]
         if stage:
-            leads = [l for l in leads if l.stage == stage]
+            leads = [ld for ld in leads if ld.stage == stage]
         if lead_type:
-            leads = [l for l in leads if l.lead_type.value == lead_type]
+            leads = [ld for ld in leads if ld.lead_type.value == lead_type]
         return leads
 
     def leads_needing_follow_up(self) -> List[Lead]:
@@ -189,13 +189,13 @@ class OutreachStore:
         if self.leads_path.exists():
             try:
                 data = json.loads(self.leads_path.read_text(encoding="utf-8"))
-                return {l["id"]: Lead.from_dict(l) for l in data}
+                return {ld["id"]: Lead.from_dict(ld) for ld in data}
             except Exception as e:
                 log.warning(f"Failed to load leads: {e}")
         return {}
 
     def _persist_leads(self):
-        data = [l.to_dict() for l in self._leads.values()]
+        data = [ld.to_dict() for ld in self._leads.values()]
         self.leads_path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
 
 

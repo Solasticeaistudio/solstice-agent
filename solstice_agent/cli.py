@@ -113,7 +113,7 @@ def main():
         print(f"\n{YELLOW}No API key configured.{RESET}")
         print(f"{DIM}Sol needs an LLM provider to think. Let's fix that.{RESET}\n")
         try:
-            answer = input(f"  Run the setup wizard? [Y/n] ").strip().lower()
+            answer = input("  Run the setup wizard? [Y/n] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             answer = "n"
         if answer in ("", "y", "yes"):

@@ -44,7 +44,7 @@ def outreach_dashboard() -> str:
         lines.append(f"  Bounced: {campaign.bounced}")
 
     metrics = store.get_today_metrics()
-    lines.append(f"\nTODAY'S METRICS")
+    lines.append("\nTODAY'S METRICS")
     lines.append(f"  Emails sent: {metrics.emails_sent}/500")
     lines.append(f"  Replies: {metrics.emails_received}")
 
