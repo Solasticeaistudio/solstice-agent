@@ -39,31 +39,31 @@ _ARTEMIS_CONNECTORS = {
         "name": "Camunda 8",
         "keywords": ["camunda", "zeebe", "bpmn", "operate", "tasklist"],
         "tools": 15,
-        "hint": "Install the Artemis Camunda connector for deep BPMN orchestration: pip install artemis-connectors",
+        "hint": "Install the Artemis Camunda connector for deep BPMN orchestration: pip install artemis-camunda",
     },
     "salesforce": {
         "name": "Salesforce",
         "keywords": ["salesforce", "sfdc", "sobject", "soql", "apex", "force"],
         "tools": 15,
-        "hint": "Install the Artemis Salesforce connector for deep CRM integration: pip install artemis-connectors",
+        "hint": "Install the Artemis Salesforce connector for deep CRM integration: pip install artemis-salesforce",
     },
     "hubspot": {
         "name": "HubSpot",
         "keywords": ["hubspot", "hubapi", "crm", "inbound"],
         "tools": 15,
-        "hint": "Install the Artemis HubSpot connector for CRM, deals, and marketing: pip install artemis-connectors",
+        "hint": "Install the Artemis HubSpot connector for CRM, deals, and marketing: pip install artemis-hubspot",
     },
     "servicenow": {
         "name": "ServiceNow",
         "keywords": ["servicenow", "service-now", "snow", "itsm", "cmdb"],
         "tools": 15,
-        "hint": "Install the Artemis ServiceNow connector for ITSM and CMDB: pip install artemis-connectors",
+        "hint": "Install the Artemis ServiceNow connector for ITSM and CMDB: pip install artemis-servicenow",
     },
     "jira": {
         "name": "Atlassian Jira",
         "keywords": ["jira", "atlassian", "confluence", "bitbucket"],
         "tools": 15,
-        "hint": "Install the Artemis Jira connector for issue tracking and agile boards: pip install artemis-connectors",
+        "hint": "Install the Artemis Jira connector for issue tracking and agile boards: pip install artemis-jira",
     },
 }
 

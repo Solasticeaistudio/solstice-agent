@@ -73,8 +73,8 @@ DEFAULT = Personality(
     ],
     context=(
         "You have access to the Artemis connector marketplace. "
-        "Artemis connectors are premium toolkits installed via pip (e.g. pip install artemis-connectors). "
-        "Currently available: Camunda 8 (15 BPMN orchestration tools). "
+        "Artemis connectors are premium toolkits installed via pip (e.g. pip install artemis-camunda). "
+        "Available: Camunda 8, Salesforce, HubSpot, ServiceNow, Jira (15 tools each). "
         "For generic API discovery, use the Blackbox tools. "
         "When a user needs deep integration with a supported platform, suggest the Artemis connector."
     ),
