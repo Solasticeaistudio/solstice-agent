@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solstice-agent"
-version = "0.2.1"
+version = "0.2.2"
 description = "Your personal AI agent. 72 built-in tools, 21 messaging channels, voice, vision, and persistent memory. Runs locally."
 readme = "README.md"
 license = "MIT"
@@ -30,6 +30,32 @@ classifiers = [
 dependencies = [
     "httpx>=0.25.0",
     "pyyaml>=6.0",
+    # LLM providers
+    "openai>=1.0",
+    "anthropic>=0.30",
+    "google-genai>=1.0",
+    # Gateway / messaging
+    "flask>=3.0",
+    "discord.py>=2.3",
+    "slack-sdk>=3.26",
+    # Web
+    "duckduckgo-search>=6.0",
+    # Voice
+    "elevenlabs>=1.0",
+    "sounddevice>=0.4",
+    "numpy>=1.24",
+    # Browser
+    "playwright>=1.40",
+    # Screen / recording
+    "mss>=9.0",
+    "Pillow>=10.0",
+    "opencv-python-headless>=4.8",
+    # Docker
+    "docker>=7.0",
+    # System tray
+    "pystray>=0.19",
+    "plyer>=2.1",
+    "pyperclip>=1.8",
 ]
 
 [project.optional-dependencies]
