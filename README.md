@@ -19,12 +19,24 @@
 
 Sol is an AI that lives on your computer. You talk to it, and it does things — reads your files, browses the web, runs your code, sends you messages on WhatsApp, listens for your voice, schedules tasks while you sleep, and remembers everything across sessions. No cloud account needed. Your data stays on your machine.
 
-```
-pip install solstice-agent[all]
-solstice-agent
+### Quick Install
+
+**Windows** (PowerShell):
+```powershell
+irm https://raw.githubusercontent.com/Solasticeaistudio/solstice-agent/main/install.ps1 | iex
 ```
 
-That's it. You're in.
+**macOS / Linux**:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Solasticeaistudio/solstice-agent/main/install.sh | bash
+```
+
+That's it. The installer handles Python detection, package install, and PATH setup. Then:
+
+```
+solstice-agent --setup    # Pick your AI provider
+solstice-agent            # Start talking
+```
 
 ---
 
@@ -33,7 +45,7 @@ That's it. You're in.
 Sol starts as a chat in your terminal. Ask it things. Tell it to do things.
 
 ```
-Sol v0.1.1
+Sol v0.2.1
 openai / gpt-4o
 Tools: 72 loaded | Streaming: on
 
@@ -171,8 +183,19 @@ Sol comes with built-in personalities (`default`, `coder`, `researcher`, `creati
 
 ## Install
 
+**Recommended** — use the one-line installer (handles PATH automatically):
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/Solasticeaistudio/solstice-agent/main/install.ps1 | iex
+
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/Solasticeaistudio/solstice-agent/main/install.sh | bash
+```
+
+**Manual install** — if you prefer pip directly:
+
 ```bash
-# Everything
 pip install solstice-agent[all]
 
 # Or pick what you need
@@ -190,6 +213,8 @@ pip install solstice-agent[web]           # + Web search
 # Browser needs one extra step
 playwright install chromium
 ```
+
+> **Windows note:** If `solstice-agent` isn't recognized after pip install, your Python Scripts directory isn't on PATH. Use the one-line installer above — it fixes this automatically. Or run `python -m solstice_agent` as a fallback.
 
 **Requirements:** Python 3.10+. Works on Windows, macOS, and Linux.
 
