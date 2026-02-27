@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 class TestImports:
     def test_import_package(self):
         import solstice_agent
-        assert solstice_agent.__version__ == "0.2.0"
+        assert solstice_agent.__version__ == "0.2.1"
 
     def test_import_agent_core(self):
         pass

@@ -329,7 +329,8 @@ def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, st
     """Interactive REPL."""
     label = f" [{agent_label}]" if agent_label else ""
     print(BANNER)
-    print(f"  {BOLD}{CYAN}Solstice Agent{RESET}{label} {DIM}v0.2.0{RESET}")
+    from . import __version__
+    print(f"  {BOLD}{CYAN}Solstice Agent{RESET}{label} {DIM}v{__version__}{RESET}")
     print(f"  {DIM}{agent.provider.name()} / {agent.personality.name}{RESET}")
     tool_names = [s['name'] for s in agent._tool_schemas] if agent._tool_schemas else ['none']
     streaming_label = "on" if stream else "off"
