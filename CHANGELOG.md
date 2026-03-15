@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-03-15
+
+### Added
+- Primary `sol`, `sol-gateway`, and `sol-tray` CLI aliases while preserving the legacy `solstice-*` commands
+- Draft-first Outlook/Graph outreach flow with approved-attachment support for investor and partner campaigns
+- Campaign knowledge-base loading and an IRIS-style investor outreach persona
+- Dedicated install smoke-test coverage for packaged CLI entrypoints
+
+### Changed
+- Installers and README now lead with the `sol` command instead of `solstice-agent`
+- Release messaging and site copy now align package name (`solstice-agent`) with product name (`Sol`)
+
 ## [0.2.2] - 2026-02-27
 
 ### Changed

@@ -208,6 +208,7 @@ class Agent:
         tools = self._tool_schemas if self._tools and self.provider.supports_tools() else None
 
         # Tool loop: use non-streaming chat() for tool iterations
+        tool_iterations = 0
         for iteration in range(self.MAX_TOOL_ITERATIONS):
             # On the last possible iteration, or if no tools, stream directly
             # Otherwise, try non-streaming first to check for tool calls
@@ -238,6 +239,14 @@ class Agent:
             messages.append(self._format_assistant_tool_message(response))
 
             for tool_call in response.tool_calls:
+                tool_iterations += 1
+                if tool_iterations > self.MAX_TOOL_ITERATIONS:
+                    final_text = "I got stuck in a tool loop. Try rephrasing?"
+                    self.history.append({"role": "assistant", "content": final_text})
+                    self._compact_or_trim()
+                    yield StreamEvent(type="text", text=final_text)
+                    yield StreamEvent(type="done", usage=response.usage)
+                    return
                 yield StreamEvent(type="tool_calls", tool_calls=[tool_call])
                 result = self._execute_tool(tool_call)
                 messages.append(self._format_tool_result(tool_call, result))
@@ -259,6 +268,14 @@ class Agent:
                 messages.append(self._format_assistant_tool_message(
                     LLMResponse(text=full_text, tool_calls=event.tool_calls)))
                 for tool_call in event.tool_calls:
+                    tool_iterations += 1
+                    if tool_iterations > self.MAX_TOOL_ITERATIONS:
+                        final_text = "I got stuck in a tool loop. Try rephrasing?"
+                        self.history.append({"role": "assistant", "content": final_text})
+                        self._compact_or_trim()
+                        yield StreamEvent(type="text", text=final_text)
+                        yield StreamEvent(type="done", usage=None)
+                        return
                     yield StreamEvent(type="tool_calls", tool_calls=[tool_call])
                     result = self._execute_tool(tool_call)
                     messages.append(self._format_tool_result(tool_call, result))
@@ -287,18 +304,64 @@ class Agent:
 
         handler = self._tools.get(name)
         if not handler:
-            return f"Error: Unknown tool '{name}'"
+            return self._format_tool_payload(
+                tool=name,
+                status="error",
+                error=f"Unknown tool '{name}'",
+            )
 
         try:
-            log.info(f"Executing tool: {name}({json.dumps(args, default=str)[:200]})")
+            log.info(f"Executing tool: {name}({self._safe_args_preview(args)})")
             result = handler(**args)
             result_str = str(result) if result is not None else "Done."
             log.debug(f"Tool result: {result_str[:200]}")
-            return result_str
+            return self._format_tool_payload(
+                tool=name,
+                status="ok",
+                data=result_str,
+            )
         except Exception as e:
-            error_msg = f"Tool '{name}' failed: {type(e).__name__}: {e}"
-            log.error(error_msg)
-            return error_msg
+            error_msg = f"{type(e).__name__}: {e}"
+            log.error(f"Tool '{name}' failed: {error_msg}")
+            return self._format_tool_payload(
+                tool=name,
+                status="error",
+                error=error_msg,
+            )
+
+    def _format_tool_payload(self, tool: str, status: str, data: str | None = None, error: str | None = None) -> str:
+        """Return a structured tool result string for the LLM to consume."""
+        payload = {
+            "tool": tool,
+            "status": status,
+            "data": data if data is not None else "",
+            "error": error if error is not None else "",
+        }
+        if len(payload["data"]) > 10000:
+            payload["data"] = payload["data"][:5000] + "\n... (truncated) ...\n" + payload["data"][-3000:]
+        return json.dumps(payload, ensure_ascii=False)
+
+    def _safe_args_preview(self, args: Dict[str, Any]) -> str:
+        """Redact likely secrets from tool args before logging."""
+        def _redact(obj):
+            if isinstance(obj, dict):
+                cleaned = {}
+                for k, v in obj.items():
+                    key_lower = str(k).lower()
+                    if any(token in key_lower for token in ("key", "token", "secret", "password", "auth", "cookie")):
+                        cleaned[k] = "***"
+                    else:
+                        cleaned[k] = _redact(v)
+                return cleaned
+            if isinstance(obj, list):
+                return [_redact(v) for v in obj]
+            return obj
+
+        try:
+            redacted = _redact(args)
+            return json.dumps(redacted, default=str)[:200]
+        except Exception:
+            return "<redacted>"
 
     def _build_messages(self, user_message: str = "") -> List[Dict[str, Any]]:
         """Build the message list with system prompt + conversation history."""

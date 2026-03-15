@@ -109,12 +109,19 @@ class Campaign:
     name: str = ""
     campaign_type: CampaignType = CampaignType.CUSTOMER
     status: CampaignStatus = CampaignStatus.DRAFT
+    persona_name: str = "outreach_investor"
     target_criteria: str = ""
     target_industries: List[str] = field(default_factory=list)
     target_titles: List[str] = field(default_factory=list)
     search_queries: List[str] = field(default_factory=list)
     pitch_deck_path: str = ""
     pitch_deck_content: str = ""
+    knowledge_dir: str = ""
+    knowledge_content: str = ""
+    attachments_dir: str = ""
+    approved_attachments: List[str] = field(default_factory=list)
+    draft_only: bool = True
+    mailbox: str = ""
     value_proposition: str = ""
     email_templates: Dict[str, str] = field(default_factory=dict)
     follow_up_days: List[int] = field(default_factory=lambda: [3, 7, 14])
@@ -142,10 +149,14 @@ class Campaign:
         return {
             "id": self.id, "name": self.name,
             "campaign_type": self.campaign_type.value, "status": self.status.value,
+            "persona_name": self.persona_name,
             "target_criteria": self.target_criteria,
             "target_industries": self.target_industries, "target_titles": self.target_titles,
             "search_queries": self.search_queries,
             "pitch_deck_path": self.pitch_deck_path, "pitch_deck_content": self.pitch_deck_content,
+            "knowledge_dir": self.knowledge_dir, "knowledge_content": self.knowledge_content,
+            "attachments_dir": self.attachments_dir, "approved_attachments": self.approved_attachments,
+            "draft_only": self.draft_only, "mailbox": self.mailbox,
             "value_proposition": self.value_proposition, "email_templates": self.email_templates,
             "follow_up_days": self.follow_up_days,
             "send_window_start": self.send_window_start, "send_window_end": self.send_window_end,

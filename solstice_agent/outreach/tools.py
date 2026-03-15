@@ -33,6 +33,12 @@ def outreach_campaign_create(
     search_queries: str = "",
     value_proposition: str = "",
     pitch_deck_path: str = "",
+    knowledge_dir: str = "",
+    attachments_dir: str = "",
+    approved_attachments: str = "",
+    mailbox: str = "",
+    persona_name: str = "outreach_investor",
+    draft_only: bool = True,
     follow_up_days: str = "3,7,14",
     daily_send_limit: int = 50,
 ) -> str:
@@ -48,6 +54,7 @@ def outreach_campaign_create(
     titles = [t.strip() for t in target_titles.split(",") if t.strip()] if target_titles else []
     queries = [q.strip() for q in search_queries.split("|") if q.strip()] if search_queries else []
     days = [int(d.strip()) for d in follow_up_days.split(",") if d.strip()] if follow_up_days else [3, 7, 14]
+    attachment_names = [a.strip() for a in approved_attachments.split(",") if a.strip()] if approved_attachments else []
 
     pitch_content = ""
     if pitch_deck_path:
@@ -55,9 +62,16 @@ def outreach_campaign_create(
         if pitch_content.startswith("Error:"):
             return pitch_content
 
+    knowledge_content = ""
+    if knowledge_dir:
+        knowledge_content = store.load_knowledge_base(knowledge_dir)
+        if knowledge_content.startswith("Error:"):
+            return knowledge_content
+
     campaign = Campaign(
         name=name,
         campaign_type=ct,
+        persona_name=persona_name,
         target_criteria=target_criteria,
         target_industries=industries,
         target_titles=titles,
@@ -65,6 +79,12 @@ def outreach_campaign_create(
         value_proposition=value_proposition,
         pitch_deck_path=pitch_deck_path,
         pitch_deck_content=pitch_content,
+        knowledge_dir=knowledge_dir,
+        knowledge_content=knowledge_content,
+        attachments_dir=attachments_dir,
+        approved_attachments=attachment_names,
+        mailbox=mailbox,
+        draft_only=draft_only,
         follow_up_days=days,
         daily_send_limit=daily_send_limit,
     )
@@ -79,6 +99,10 @@ def outreach_campaign_create(
         f"  Titles: {', '.join(titles) or 'any'}\n"
         f"  Search queries: {len(queries)}\n"
         f"  Pitch deck: {'loaded' if pitch_content else 'not loaded'}\n"
+        f"  Knowledge base: {'loaded' if knowledge_content else 'not loaded'}\n"
+        f"  Mailbox: {campaign.mailbox or 'default env mailbox'}\n"
+        f"  Draft only: {campaign.draft_only}\n"
+        f"  Approved attachments: {', '.join(campaign.approved_attachments) or 'none'}\n"
         f"  Follow-up schedule: day {', '.join(str(d) for d in days)}\n"
         f"  Status: DRAFT\n\n"
         f"Next: Use outreach_campaign_start to activate autonomous outreach."
@@ -108,7 +132,9 @@ def outreach_campaign_list() -> str:
         lines.append(
             f"  {c.id} [{c.status.value.upper()}] {c.name}\n"
             f"    Type: {c.campaign_type.value} | Leads: {leads} | "
-            f"Sent: {c.emails_sent} | Replies: {c.replies_received}"
+            f"Sent: {c.emails_sent} | Replies: {c.replies_received}\n"
+            f"    Mailbox: {c.mailbox or 'default'} | Draft only: {c.draft_only} | "
+            f"Attachments: {len(c.approved_attachments)}"
         )
     return "\n".join(lines)
 
@@ -129,6 +155,23 @@ def outreach_campaign_load_pitch(campaign_id: str, pitch_deck_path: str) -> str:
     store.save_campaign(campaign)
 
     return f"Pitch deck loaded for '{campaign.name}': {len(content)} chars from {pitch_deck_path}"
+
+
+def outreach_campaign_load_knowledge(campaign_id: str, knowledge_dir: str) -> str:
+    """Load or refresh the approved knowledge directory for a campaign."""
+    store = get_store()
+    campaign = store.get_campaign(campaign_id)
+    if not campaign:
+        return f"Error: Campaign '{campaign_id}' not found."
+
+    content = store.load_knowledge_base(knowledge_dir)
+    if content.startswith("Error:"):
+        return content
+
+    campaign.knowledge_dir = knowledge_dir
+    campaign.knowledge_content = content
+    store.save_campaign(campaign)
+    return f"Knowledge base loaded for '{campaign.name}': {len(content)} chars from {knowledge_dir}"
 
 
 def outreach_check_inbox() -> str:
@@ -180,6 +223,12 @@ _SCHEMAS = {
                 "search_queries": {"type": "string", "description": "Pipe-separated search queries for prospecting"},
                 "value_proposition": {"type": "string", "description": "Core pitch in 2-3 sentences"},
                 "pitch_deck_path": {"type": "string", "description": "Path to pitch deck file (markdown/text)"},
+                "knowledge_dir": {"type": "string", "description": "Directory of approved knowledge files"},
+                "attachments_dir": {"type": "string", "description": "Directory of approved outbound attachments"},
+                "approved_attachments": {"type": "string", "description": "Comma-separated approved filenames"},
+                "mailbox": {"type": "string", "description": "Mailbox address to draft/send from"},
+                "persona_name": {"type": "string", "description": "Registered outreach personality name"},
+                "draft_only": {"type": "boolean", "description": "Create drafts instead of sending"},
                 "follow_up_days": {"type": "string", "description": "Comma-separated days between follow-ups (default: 3,7,14)"},
                 "daily_send_limit": {"type": "integer", "description": "Max emails/day for this campaign (default: 50)"},
             },
@@ -219,6 +268,18 @@ _SCHEMAS = {
                 "pitch_deck_path": {"type": "string", "description": "Path to pitch deck file"},
             },
             "required": ["campaign_id", "pitch_deck_path"],
+        },
+    },
+    "outreach_campaign_load_knowledge": {
+        "name": "outreach_campaign_load_knowledge",
+        "description": "Load or refresh the approved knowledge directory for a campaign.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {"type": "string"},
+                "knowledge_dir": {"type": "string", "description": "Directory of approved knowledge files"},
+            },
+            "required": ["campaign_id", "knowledge_dir"],
         },
     },
     "prospect_search": {
@@ -305,7 +366,7 @@ _SCHEMAS = {
     },
     "outreach_send": {
         "name": "outreach_send",
-        "description": "Send a composed email to a lead. Records in conversation history and schedules follow-up.",
+        "description": "Create a draft or send a composed email to a lead, depending on campaign settings. Records in conversation history and schedules follow-up.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -382,6 +443,7 @@ def register_outreach_tools(registry):
         "outreach_campaign_pause": outreach_campaign_pause,
         "outreach_campaign_list": outreach_campaign_list,
         "outreach_campaign_load_pitch": outreach_campaign_load_pitch,
+        "outreach_campaign_load_knowledge": outreach_campaign_load_knowledge,
         "prospect_search": prospect_search,
         "prospect_research": prospect_research,
         "prospect_qualify": prospect_qualify,

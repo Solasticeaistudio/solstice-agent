@@ -85,13 +85,17 @@ elif [ -n "$BASH_VERSION" ] || [ "$SHELL" = "/bin/bash" ]; then
     [ -f "$HOME/.bash_profile" ] && SHELL_RC="$HOME/.bash_profile"
 fi
 
-# Check if solstice-agent is findable
-if command -v solstice-agent &>/dev/null; then
-    ok "solstice-agent is on PATH"
+# Check if sol is findable
+if command -v sol &>/dev/null; then
+    ok "sol is on PATH"
 else
     # Find where the exe actually is
     SOL_PATH=""
     for d in "$SCRIPTS_DIR" "$USER_SCRIPTS" "$HOME/.local/bin"; do
+        if [ -f "$d/sol" ]; then
+            SOL_PATH="$d"
+            break
+        fi
         if [ -f "$d/solstice-agent" ]; then
             SOL_PATH="$d"
             break
@@ -99,7 +103,7 @@ else
     done
 
     if [ -n "$SOL_PATH" ]; then
-        warn "solstice-agent found at $SOL_PATH (not on PATH)"
+        warn "sol found at $SOL_PATH (not on PATH)"
 
         if [ -n "$SHELL_RC" ]; then
             step "Adding $SOL_PATH to PATH in $SHELL_RC..."
@@ -113,15 +117,15 @@ else
             warn "Add this to your shell config: export PATH=\"\$PATH:$SOL_PATH\""
         fi
     else
-        warn "Could not locate solstice-agent binary. Try: $PYTHON -m solstice_agent"
+        warn "Could not locate sol binary. Try: $PYTHON -m solstice_agent"
     fi
 fi
 
 # --- Step 4: Verify ---
 step "Verifying installation..."
 
-if command -v solstice-agent &>/dev/null; then
-    ok "solstice-agent is ready!"
+if command -v sol &>/dev/null; then
+    ok "sol is ready!"
 else
     $PYTHON -m solstice_agent --help &>/dev/null 2>&1 && ok "Installed! Use: $PYTHON -m solstice_agent" || fail "Verification failed."
 fi
@@ -140,6 +144,7 @@ else
 fi
 
 echo ""
-echo "    solstice-agent --setup    # First-time setup (pick your AI provider)"
-echo "    solstice-agent            # Start talking to Sol"
+echo "    sol --setup              # First-time setup (pick your AI provider)"
+echo "    sol                      # Start talking to Sol"
+echo "    solstice-agent           # Legacy command still works"
 echo ""

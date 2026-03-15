@@ -34,8 +34,9 @@ class OutreachStore:
         self.conversations_dir = self.root / "conversations"
         self.metrics_dir = self.root / "metrics"
         self.pitch_decks_dir = self.root / "pitch_decks"
+        self.drafts_dir = self.root / "drafts"
 
-        for d in [self.root, self.conversations_dir, self.metrics_dir, self.pitch_decks_dir]:
+        for d in [self.root, self.conversations_dir, self.metrics_dir, self.pitch_decks_dir, self.drafts_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
         self._campaigns: Dict[str, Campaign] = self._load_campaigns()
@@ -169,6 +170,76 @@ class OutreachStore:
         dest = self.pitch_decks_dir / p.name
         dest.write_text(content, encoding="utf-8")
         return content
+
+    def load_knowledge_base(self, root: str, limit: int = 12000) -> str:
+        base = Path(root)
+        if not base.exists():
+            return f"Error: Knowledge directory not found: {root}"
+        if not base.is_dir():
+            return f"Error: Knowledge path is not a directory: {root}"
+
+        chunks: List[str] = []
+        for path in sorted(base.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in {".md", ".txt", ".json", ".yml", ".yaml"}:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError as exc:
+                log.warning(f"Failed reading knowledge file {path}: {exc}")
+                continue
+            if not text:
+                continue
+            rel = path.relative_to(base).as_posix()
+            chunks.append(f"[FILE: {rel}]\n{text[:3000]}")
+            if sum(len(c) for c in chunks) >= limit:
+                break
+
+        if not chunks:
+            return "No supported knowledge files found."
+        return "\n\n---\n\n".join(chunks)[:limit]
+
+    def resolve_attachment_paths(self, attachments_dir: str, filenames: List[str]) -> List[Path]:
+        if not attachments_dir or not filenames:
+            return []
+        root = Path(attachments_dir)
+        resolved: List[Path] = []
+        for name in filenames:
+            candidate = (root / name).resolve()
+            try:
+                candidate.relative_to(root.resolve())
+            except ValueError:
+                log.warning(f"Skipping attachment outside root: {name}")
+                continue
+            if candidate.exists() and candidate.is_file():
+                resolved.append(candidate)
+            else:
+                log.warning(f"Attachment not found: {candidate}")
+        return resolved
+
+    def save_outbound_artifact(
+        self,
+        lead_id: str,
+        subject: str,
+        body: str,
+        mode: str,
+        attachments: Optional[List[str]] = None,
+        metadata: Optional[dict] = None,
+    ) -> Path:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        path = self.drafts_dir / f"{lead_id}-{stamp}.json"
+        payload = {
+            "lead_id": lead_id,
+            "subject": subject,
+            "body": body,
+            "mode": mode,
+            "attachments": attachments or [],
+            "metadata": metadata or {},
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return path
 
     # --- Internal ---
 

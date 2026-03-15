@@ -177,7 +177,11 @@ def validate_path(path: str, operation: str = "access") -> Optional[str]:
 
     # Check workspace boundary if set
     if _workspace_root is not None:
-        if not resolved.startswith(_workspace_root + os.sep) and resolved != _workspace_root:
+        try:
+            common = os.path.commonpath([_workspace_root, resolved])
+        except ValueError:
+            common = ""
+        if common != _workspace_root:
             return (
                 f"Cannot {operation}: path '{path}' is outside the workspace "
                 f"directory '{_workspace_root}'."

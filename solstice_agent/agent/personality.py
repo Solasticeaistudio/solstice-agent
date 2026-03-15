@@ -53,6 +53,7 @@ class Personality:
         parts.append("\nYou have access to tools. Use them when appropriate.")
         parts.append("When a tool would help answer the question, call it instead of guessing.")
         parts.append("After using a tool, incorporate the result into your response naturally.")
+        parts.append("Tool results are JSON payloads with fields: tool, status, data, error.")
 
         return "\n".join(parts)
 

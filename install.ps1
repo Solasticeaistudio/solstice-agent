@@ -75,11 +75,15 @@ if (-not $scriptsDir) {
     } catch { }
 }
 
-# Check if solstice-agent.exe exists there
+# Check if sol.exe exists there
 $solExe = $null
 if ($scriptsDir) {
-    $candidate = Join-Path $scriptsDir "solstice-agent.exe"
+    $candidate = Join-Path $scriptsDir "sol.exe"
     if (Test-Path $candidate) { $solExe = $candidate }
+    if (-not $solExe) {
+        $candidate = Join-Path $scriptsDir "solstice-agent.exe"
+        if (Test-Path $candidate) { $solExe = $candidate }
+    }
 }
 
 # Is Scripts dir already on PATH?
@@ -113,15 +117,15 @@ if ($scriptsDir -and $solExe) {
 # --- Step 4: Verify ---
 Write-Step "Verifying installation..."
 
-$solCmd = Get-Command "solstice-agent" -ErrorAction SilentlyContinue
+$solCmd = Get-Command "sol" -ErrorAction SilentlyContinue
 if ($solCmd) {
-    Write-OK "solstice-agent is ready!"
+    Write-OK "sol is ready!"
 } else {
     # Try the python -m fallback
     try {
         & $python -m solstice_agent --help >$null 2>&1
         Write-OK "Installed! Use: python -m solstice_agent"
-        Write-Warn "Note: 'solstice-agent' command requires opening a NEW terminal."
+        Write-Warn "Note: 'sol' may require opening a NEW terminal."
     } catch {
         Write-Fail "Installation may have failed. Try: $python -m solstice_agent"
     }
@@ -141,6 +145,7 @@ if ($needsPathFix) {
 }
 
 Write-Host ""
-Write-Host "    solstice-agent --setup    # First-time setup (pick your AI provider)" -ForegroundColor White
-Write-Host "    solstice-agent            # Start talking to Sol" -ForegroundColor White
+Write-Host "    sol --setup              # First-time setup (pick your AI provider)" -ForegroundColor White
+Write-Host "    sol                      # Start talking to Sol" -ForegroundColor White
+Write-Host "    solstice-agent           # Legacy command still works" -ForegroundColor DarkGray
 Write-Host ""

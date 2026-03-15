@@ -4,10 +4,10 @@ CLI Agent
 Interactive terminal agent. Type messages, get responses with tool use.
 
 Usage:
-    solstice-agent                    # Interactive mode
-    solstice-agent "What's in my cwd?"  # One-shot mode
-    solstice-agent --provider ollama  # Use local model
-    solstice-agent --setup            # Interactive setup wizard
+    sol                              # Interactive mode
+    sol "What's in my cwd?"          # One-shot mode
+    sol --provider ollama            # Use local model
+    sol --setup                      # Interactive setup wizard
 """
 
 import json
@@ -19,6 +19,7 @@ import logging
 from .config import Config
 from .agent.core import Agent
 from .agent.personality import DEFAULT, CODER
+from .agent.personalities import list_personalities, resolve_personality
 from .tools.registry import ToolRegistry
 
 # Colors
@@ -32,8 +33,9 @@ BLUE = "\033[34m"
 
 
 def main():
+    prog = "sol" if "sol" in (sys.argv[0] or "").lower() else "solstice-agent"
     parser = argparse.ArgumentParser(
-        prog="solstice-agent",
+        prog=prog,
         description="AI agent with real tool use. Not a chatbot wrapper.",
     )
     parser.add_argument("message", nargs="?", help="One-shot message (skip interactive mode)")
@@ -41,7 +43,7 @@ def main():
     parser.add_argument("--model", "-m", help="Model name")
     parser.add_argument("--api-key", "-k", help="API key")
     parser.add_argument("--config", "-c", help="Path to config file")
-    parser.add_argument("--personality", choices=["default", "coder"], default="default")
+    parser.add_argument("--personality", choices=list_personalities(), default="default")
     parser.add_argument("--no-tools", action="store_true", help="Disable all tools")
     parser.add_argument("--no-terminal", action="store_true", help="Disable terminal tool")
     parser.add_argument("--no-web", action="store_true", help="Disable web tools")
@@ -125,7 +127,7 @@ def main():
                 print(f"\n{YELLOW}Setup didn't configure an API key. Exiting.{RESET}")
                 sys.exit(1)
         else:
-            print(f"\n{DIM}You can run setup later with: solstice-agent --setup{RESET}")
+            print(f"\n{DIM}You can run setup later with: sol --setup{RESET}")
             print(f"{DIM}Or set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY{RESET}")
             sys.exit(1)
 
@@ -171,7 +173,7 @@ def main():
             print(f"{YELLOW}Failed to create provider: {e}{RESET}")
             sys.exit(1)
 
-        personality = CODER if args.personality == "coder" else DEFAULT
+        personality = resolve_personality(args.personality)
 
         skill_loader = None
         if not args.no_skills:

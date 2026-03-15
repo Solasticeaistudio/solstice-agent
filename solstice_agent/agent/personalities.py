@@ -9,13 +9,14 @@ Supports:
 """
 
 from .personality import Personality, DEFAULT, CODER
-from ..outreach.personality import OUTREACH_INVESTOR, OUTREACH_CUSTOMER
+from ..outreach.personality import OUTREACH_INVESTOR, OUTREACH_CUSTOMER, OUTREACH_IRIS_INVESTOR
 
 # Built-in personality registry
 PERSONALITIES = {
     "default": DEFAULT,
     "coder": CODER,
     "outreach_investor": OUTREACH_INVESTOR,
+    "outreach_iris_investor": OUTREACH_IRIS_INVESTOR,
     "outreach_customer": OUTREACH_CUSTOMER,
 }
 

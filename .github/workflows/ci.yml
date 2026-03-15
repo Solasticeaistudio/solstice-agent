@@ -34,3 +34,6 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -x -q
+
+      - name: Packaging smoke test
+        run: pytest tests/test_install_surface.py -q
