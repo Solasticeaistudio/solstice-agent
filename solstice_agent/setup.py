@@ -4,7 +4,7 @@ Interactive Setup — Conversational Onboarding
 Not a form. A conversation. Walks anyone through setup,
 even if they've never touched an API key in their life.
 
-Run: solstice-agent --setup
+Run: sol --setup
 """
 
 import os
@@ -332,10 +332,13 @@ def run_setup():
         print()
         _say("Here's how to talk to me:")
         print()
-        print(f"    {GREEN}solstice-agent{RESET}              {DIM}# Start a conversation{RESET}")
-        print(f"    {GREEN}solstice-agent \"hello\"{RESET}      {DIM}# Quick one-liner{RESET}")
+        print(f"    {GREEN}sol{RESET}                        {DIM}# Start a conversation{RESET}")
+        print(f"    {GREEN}sol \"hello\"{RESET}                {DIM}# Quick one-liner{RESET}")
         if setup_gateway:
-            print(f"    {GREEN}solstice-gateway{RESET}            {DIM}# Start the messaging server{RESET}")
+            print(f"    {GREEN}sol-gateway{RESET}                {DIM}# Start the messaging server{RESET}")
+        print()
+        _say("If you need a deep enterprise integration, install an Artemis connector into the same environment.")
+        _say_dim("  Example (Camunda): pipx inject solstice-agent artemis-camunda")
         print()
         _say("See you in there.")
     else:
