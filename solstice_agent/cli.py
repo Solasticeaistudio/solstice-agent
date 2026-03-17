@@ -18,7 +18,6 @@ import logging
 
 from .config import Config
 from .agent.core import Agent
-from .agent.personality import DEFAULT, CODER
 from .agent.personalities import list_personalities, resolve_personality
 from .tools.registry import ToolRegistry
 
