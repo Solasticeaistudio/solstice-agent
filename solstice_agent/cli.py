@@ -11,12 +11,13 @@ Usage:
 """
 
 import json
+import os
 import sys
 import time
 import argparse
 import logging
 
-from .config import Config
+from .config import Config, default_config_path, find_config_path, provider_env_snapshot
 from .agent.core import Agent
 from .agent.personalities import list_personalities, resolve_personality
 from .tools.registry import ToolRegistry
@@ -29,6 +30,46 @@ DIM = "\033[2m"
 BOLD = "\033[1m"
 RESET = "\033[0m"
 BLUE = "\033[34m"
+
+
+def _has_any_provider_credentials() -> bool:
+    env = provider_env_snapshot()
+    return any(
+        env.get(name)
+        for name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "SOLSTICE_API_KEY")
+    )
+
+
+def _first_run_needs_onboarding(config_path: str | None) -> bool:
+    return sys.stdin.isatty() and find_config_path(config_path) is None and not _has_any_provider_credentials()
+
+
+def _print_provider_warnings(config: Config):
+    env = provider_env_snapshot()
+    if config.provider == "gemini" and env.get("GOOGLE_API_KEY") and env.get("GEMINI_API_KEY"):
+        print(f"{YELLOW}Both GOOGLE_API_KEY and GEMINI_API_KEY are set.{RESET}")
+        print(f"{DIM}Sol will normalize Gemini auth in-process, but keeping only one is cleaner.{RESET}")
+        print(f"{DIM}Recommended: remove the stale key and keep the one you actually want to use.{RESET}\n")
+
+
+def _friendly_runtime_error(error: Exception, config: Config) -> str:
+    text = str(error)
+    upper = text.upper()
+    if config.provider == "gemini" and (
+        "API KEY EXPIRED" in upper or "API_KEY_INVALID" in upper or "INVALID_ARGUMENT" in upper
+    ):
+        return (
+            "Your Gemini API key looks invalid or expired.\n"
+            "Fix it with `sol --setup`, or refresh GOOGLE_API_KEY / GEMINI_API_KEY and relaunch Sol."
+        )
+    return f"Error: {error}"
+
+
+def _run_setup_and_reload(config_path: str | None) -> Config:
+    from .setup import run_setup
+
+    run_setup(config_path or str(default_config_path()))
+    return Config.load(config_path)
 
 
 def main():
@@ -65,13 +106,145 @@ def main():
     parser.add_argument("--no-stream", action="store_true", help="Disable streaming (wait for full response)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show debug logs")
     parser.add_argument("--setup", action="store_true", help="Run interactive setup wizard")
+    parser.add_argument("--outreach-load-seeds", nargs=2, metavar=("CAMPAIGN_JSON", "LEADS_JSON"),
+                        help="Load outreach campaign and lead seeds into the local outreach store")
+    parser.add_argument("--outreach-store-root",
+                        help="Optional outreach store root to use with --outreach-load-seeds")
+    parser.add_argument("--replace-seeds", action="store_true",
+                        help="Overwrite an existing seeded campaign and update matching leads by email")
+    parser.add_argument("--outreach-prepare-drafts", metavar="CAMPAIGN_ID",
+                        help="Prepare compose artifacts for a campaign's leads")
+    parser.add_argument("--email-type", default="initial",
+                        help="Email type for --outreach-prepare-drafts (default: initial)")
+    parser.add_argument("--stage", default="qualified",
+                        help="Lead stage filter for --outreach-prepare-drafts (default: qualified)")
+    parser.add_argument("--limit", type=int, default=10,
+                        help="Max drafts to prepare with --outreach-prepare-drafts")
+    parser.add_argument("--custom-angle", default="",
+                        help="Optional shared angle to inject into prepared draft contexts")
+    parser.add_argument("--outreach-prepare-replies", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Prepare reply compose artifacts for pending inbound replies")
+    parser.add_argument("--auto-safe-only", action="store_true",
+                        help="With --outreach-prepare-replies, only auto-prepare replies classified as safe")
+    parser.add_argument("--outreach-review-replies", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Show pending reply triage for a campaign or all campaigns")
+    parser.add_argument("--outreach-pipeline-memory", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Show tagged pipeline memory for a campaign or all campaigns")
+    parser.add_argument("--outreach-analytics", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Show outreach analytics for a campaign or all campaigns")
+    parser.add_argument("--outreach-next-actions", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Show ranked next best actions for a campaign or all campaigns")
+    parser.add_argument("--outreach-export-crm", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Export connector-ready CRM records for a campaign or all campaigns")
+    parser.add_argument("--outreach-export-meetings", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Export meeting handoff records for demo or converted leads")
+    parser.add_argument("--outreach-autoreply-safe", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Use the configured LLM to draft/send safe pending replies for a campaign or all campaigns")
+    parser.add_argument("--booking-link",
+                        help="Booking link to use for auto-handling demo requests")
+    parser.add_argument("--booking-cta",
+                        help="Intro line to place before the booking link in demo replies")
+    parser.add_argument("--booking-label",
+                        help="Human label for the booking link")
 
     args = parser.parse_args()
 
     # Setup wizard
     if args.setup:
-        from .setup import run_setup
-        run_setup()
+        _run_setup_and_reload(args.config)
+        return
+
+    if not args.setup and not args.message and _first_run_needs_onboarding(args.config):
+        print(f"\n{CYAN}First launch detected. Sol needs a quick setup before it can think.{RESET}\n")
+        _run_setup_and_reload(args.config)
+
+    if args.outreach_load_seeds:
+        from .outreach import load_seed_bundle
+
+        campaign_seed_path, leads_seed_path = args.outreach_load_seeds
+        print(
+            load_seed_bundle(
+                campaign_seed_path=campaign_seed_path,
+                leads_seed_path=leads_seed_path,
+                store_root=args.outreach_store_root,
+                replace=args.replace_seeds,
+            )
+        )
+        return
+
+    if args.outreach_prepare_drafts:
+        from .outreach.composer import outreach_prepare_draft_batch
+
+        print(
+            outreach_prepare_draft_batch(
+                campaign_id=args.outreach_prepare_drafts,
+                email_type=args.email_type,
+                limit=args.limit,
+                stage=args.stage,
+                custom_angle=args.custom_angle,
+            )
+        )
+        return
+
+    if args.outreach_prepare_replies is not None:
+        from .outreach.reply_triage import outreach_prepare_reply_batch
+
+        print(
+            outreach_prepare_reply_batch(
+                campaign_id=args.outreach_prepare_replies,
+                limit=args.limit,
+                auto_safe_only=args.auto_safe_only,
+            )
+        )
+        return
+
+    if args.outreach_review_replies is not None:
+        from .outreach.reply_triage import outreach_reply_review_queue
+
+        print(
+            outreach_reply_review_queue(
+                campaign_id=args.outreach_review_replies,
+                limit=args.limit,
+            )
+        )
+        return
+
+    if args.outreach_pipeline_memory is not None:
+        from .outreach.reply_triage import outreach_pipeline_snapshot
+
+        print(outreach_pipeline_snapshot(campaign_id=args.outreach_pipeline_memory))
+        return
+
+    if args.outreach_analytics is not None:
+        from .outreach.analytics import outreach_analytics
+
+        print(outreach_analytics(campaign_id=args.outreach_analytics))
+        return
+
+    if args.outreach_next_actions is not None:
+        from .outreach.analytics import outreach_next_best_actions
+
+        print(outreach_next_best_actions(campaign_id=args.outreach_next_actions, limit=args.limit))
+        return
+
+    if args.outreach_export_crm is not None:
+        from .outreach.sync_queue import outreach_export_crm
+
+        print(outreach_export_crm(campaign_id=args.outreach_export_crm))
+        return
+
+    if args.outreach_export_meetings is not None:
+        from .outreach.sync_queue import outreach_export_meeting_queue
+
+        print(outreach_export_meeting_queue(campaign_id=args.outreach_export_meetings))
         return
 
     # Logging
@@ -79,7 +252,6 @@ def main():
     logging.basicConfig(level=level, format="%(name)s: %(message)s")
 
     # Set workspace root for path sandboxing (defaults to CWD)
-    import os
     from .tools.security import set_workspace_root
     set_workspace_root(os.getcwd())
 
@@ -93,6 +265,29 @@ def main():
         config.model = args.model
     if args.api_key:
         config.api_key = args.api_key
+
+    _print_provider_warnings(config)
+
+    if args.outreach_autoreply_safe is not None:
+        try:
+            provider = config.create_provider()
+        except Exception as e:
+            print(f"{YELLOW}Failed to create provider: {e}{RESET}")
+            sys.exit(1)
+
+        from .outreach.autoreply import outreach_autoreply_safe
+
+        print(
+            outreach_autoreply_safe(
+                provider=provider,
+                campaign_id=args.outreach_autoreply_safe,
+                limit=args.limit,
+                booking_link=args.booking_link or config.outreach_booking_link,
+                booking_cta=args.booking_cta or config.outreach_booking_cta,
+                booking_label=args.booking_label or config.outreach_booking_label,
+            )
+        )
+        return
 
     # Wire up command safety confirmation
     from .tools.terminal import set_confirm_callback
@@ -118,8 +313,7 @@ def main():
         except (EOFError, KeyboardInterrupt):
             answer = "n"
         if answer in ("", "y", "yes"):
-            from .setup import run_setup
-            run_setup()
+            _run_setup_and_reload(args.config)
             # Reload config after setup
             config = Config.load(args.config)
             if config.provider != "ollama" and not config.api_key:
@@ -256,11 +450,15 @@ def main():
 
     # One-shot mode
     if args.message:
-        if args.no_stream:
-            response = agent.chat(args.message, images=args.image)
-            print(response)
-        else:
-            _stream_response(agent, args.message, images=args.image)
+        try:
+            if args.no_stream:
+                response = agent.chat(args.message, images=args.image)
+                print(response)
+            else:
+                _stream_response(agent, args.message, images=args.image)
+        except Exception as e:
+            print(f"{YELLOW}{_friendly_runtime_error(e, config)}{RESET}")
+            sys.exit(1)
         if memory:
             memory.save_conversation(agent.get_history())
         return
@@ -384,7 +582,7 @@ def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, st
         except KeyboardInterrupt:
             print(f"\n{DIM}(interrupted){RESET}")
         except Exception as e:
-            print(f"\n{YELLOW}Error: {e}{RESET}\n")
+            print(f"\n{YELLOW}{_friendly_runtime_error(e, config)}{RESET}\n")
 
 
 if __name__ == "__main__":

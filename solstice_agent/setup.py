@@ -11,7 +11,8 @@ import os
 import sys
 import time
 import random
-from pathlib import Path
+
+from .config import default_config_path
 
 # Colors
 CYAN = "\033[36m"
@@ -80,7 +81,7 @@ def _wait():
     time.sleep(0.4)
 
 
-def run_setup():
+def run_setup(config_path: str | None = None):
     """The main onboarding experience."""
 
     config_lines = []
@@ -178,7 +179,7 @@ def run_setup():
             _say("Perfect, we're good to go.")
         else:
             _say("No rush. Install it whenever you're ready, then come back")
-            _say(f"and just run {BOLD}solstice-agent{RESET}{CYAN} — I'll be here.{RESET}")
+            _say(f"and just run {BOLD}sol{RESET}{CYAN} — I'll be here.{RESET}")
 
         print()
         ollama_url = _ask("Where is Ollama running?", default="http://localhost:11434")
@@ -314,7 +315,7 @@ def run_setup():
     _say("That's everything! Let me save your settings.")
     print()
 
-    config_path = Path.cwd() / "solstice-agent.yaml"
+    config_path = default_config_path(config_path)
     config_content = "\n".join(config_lines) + "\n"
 
     print(f"  {DIM}{'─' * 45}{RESET}")
@@ -324,11 +325,14 @@ def run_setup():
     print()
 
     if _ask_yn(f"Save this to {config_path.name}?"):
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, 'w') as f:
             f.write(config_content)
         print()
         _say("Saved! You're all set.")
         _wait()
+        print()
+        _say_dim(f"Config saved to {config_path}")
         print()
         _say("Here's how to talk to me:")
         print()

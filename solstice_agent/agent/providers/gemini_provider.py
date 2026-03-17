@@ -6,6 +6,7 @@ Requires: pip install google-genai
 """
 
 import logging
+import os
 from typing import Generator, List, Dict, Any, Optional
 
 from .base import BaseLLMProvider, LLMResponse, StreamEvent
@@ -33,6 +34,16 @@ class GeminiProvider(BaseLLMProvider):
         super().__init__(api_key, model, **kwargs)
         self._search_grounding = kwargs.get("search_grounding", False)
 
+    def _normalize_process_env(self):
+        """
+        Keep the Google SDK from picking a stale env var over the configured key.
+        The SDK warns and prefers GOOGLE_API_KEY if both are set.
+        """
+        if not self.api_key:
+            return
+        os.environ["GOOGLE_API_KEY"] = self.api_key
+        os.environ.pop("GEMINI_API_KEY", None)
+
     def name(self) -> str:
         return f"Gemini ({self.model})"
 
@@ -49,6 +60,7 @@ class GeminiProvider(BaseLLMProvider):
         except ImportError:
             raise ImportError("Gemini provider requires: pip install google-genai")
 
+        self._normalize_process_env()
         client = genai.Client(api_key=self.api_key)
 
         # Convert messages to Gemini format (with multimodal support)
@@ -150,6 +162,7 @@ class GeminiProvider(BaseLLMProvider):
         except ImportError:
             raise ImportError("Gemini provider requires: pip install google-genai")
 
+        self._normalize_process_env()
         client = genai.Client(api_key=self.api_key)
 
         # Same message formatting as chat()

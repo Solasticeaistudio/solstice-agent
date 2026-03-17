@@ -44,6 +44,11 @@ class Config:
     gateway_enabled: bool = False
     gateway_channels: Dict[str, Any] = field(default_factory=dict)
 
+    # Outreach
+    outreach_booking_link: str = ""
+    outreach_booking_cta: str = "If helpful, you can grab a time here:"
+    outreach_booking_label: str = "booking link"
+
     # Multi-agent
     agents: Dict[str, Any] = field(default_factory=dict)
     routing: Dict[str, Any] = field(default_factory=dict)
@@ -123,6 +128,12 @@ class Config:
             self.api_key = os.getenv("SOLSTICE_API_KEY", self.api_key)
         if os.getenv("SOLSTICE_MODEL"):
             self.model = os.getenv("SOLSTICE_MODEL", self.model)
+        if os.getenv("SOLSTICE_OUTREACH_BOOKING_LINK"):
+            self.outreach_booking_link = os.getenv("SOLSTICE_OUTREACH_BOOKING_LINK", self.outreach_booking_link)
+        if os.getenv("SOLSTICE_OUTREACH_BOOKING_CTA"):
+            self.outreach_booking_cta = os.getenv("SOLSTICE_OUTREACH_BOOKING_CTA", self.outreach_booking_cta)
+        if os.getenv("SOLSTICE_OUTREACH_BOOKING_LABEL"):
+            self.outreach_booking_label = os.getenv("SOLSTICE_OUTREACH_BOOKING_LABEL", self.outreach_booking_label)
 
     def create_provider(self):
         """Create an LLM provider from config."""
@@ -165,3 +176,35 @@ class Config:
     def get_routing_config(self) -> Dict[str, Any]:
         """Get routing configuration dict."""
         return self.routing
+
+
+def find_config_path(path: str = None) -> Path | None:
+    """Return the first existing config path, if any."""
+    yaml_path = Path(path) if path else None
+    if yaml_path and yaml_path.exists():
+        return yaml_path
+    for search_path in CONFIG_SEARCH_PATHS:
+        if search_path.exists():
+            return search_path
+    return None
+
+
+def default_config_path(path: str = None) -> Path:
+    """Return the preferred writable config path for setup."""
+    if path:
+        return Path(path).expanduser()
+    return Path.home() / ".config" / "solstice-agent" / CONFIG_FILENAME
+
+
+def provider_env_snapshot() -> Dict[str, str]:
+    """Return currently set provider-related environment variables."""
+    names = [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "SOLSTICE_PROVIDER",
+        "SOLSTICE_API_KEY",
+        "SOLSTICE_MODEL",
+    ]
+    return {name: os.getenv(name, "") for name in names if os.getenv(name)}
