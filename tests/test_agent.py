@@ -181,6 +181,7 @@ class TestToolRegistry:
         assert "memory_remember" in tools
         assert "memory_recall" in tools
         assert "memory_forget" in tools
+        assert "memory_search" in tools
         assert "memory_list_conversations" in tools
         assert "skill_get" in tools
         assert "skill_list" in tools
@@ -263,6 +264,84 @@ class TestToolRegistry:
         assert "cron_list" not in tools
         assert "cron_remove" not in tools
         assert "read_file" in tools
+
+    def test_loads_connector_entry_points(self):
+        from solstice_agent.tools.registry import ToolRegistry
+
+        class FakeEntryPoint:
+            def __init__(self, name, register_fn):
+                self.name = name
+                self._register_fn = register_fn
+
+            def load(self):
+                return self._register_fn
+
+        def register_connector(registry):
+            registry.register(
+                "crm_lookup",
+                lambda account_id="": account_id,
+                {
+                    "name": "crm_lookup",
+                    "description": "Connector test tool",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            )
+
+        registry = ToolRegistry()
+        with patch("importlib.metadata.entry_points", return_value=[FakeEntryPoint("crm", register_connector)]):
+            registry._load_artemis_connectors()
+
+        assert "crm_lookup" in registry.list_tools()
+        assert registry.list_connectors() == ["crm"]
+
+    def test_failed_connector_load_does_not_stop_discovery(self):
+        from solstice_agent.tools.registry import ToolRegistry
+
+        class FakeEntryPoint:
+            def __init__(self, name, register_fn):
+                self.name = name
+                self._register_fn = register_fn
+
+            def load(self):
+                return self._register_fn
+
+        def broken_connector(_registry):
+            raise RuntimeError("boom")
+
+        def working_connector(registry):
+            registry.register(
+                "ticket_sync",
+                lambda ticket_id="": ticket_id,
+                {
+                    "name": "ticket_sync",
+                    "description": "Working connector tool",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            )
+
+        registry = ToolRegistry()
+        with patch(
+            "importlib.metadata.entry_points",
+            return_value=[
+                FakeEntryPoint("broken", broken_connector),
+                FakeEntryPoint("tickets", working_connector),
+            ],
+        ):
+            registry._load_artemis_connectors()
+
+        assert "ticket_sync" in registry.list_tools()
+        assert registry.list_connectors() == ["tickets"]
+
+    def test_list_connectors_returns_copy(self):
+        from solstice_agent.tools.registry import ToolRegistry
+
+        registry = ToolRegistry()
+        registry._loaded_connectors.append("crm")
+
+        connectors = registry.list_connectors()
+        connectors.append("tampered")
+
+        assert registry.list_connectors() == ["crm"]
 
     def test_apply_to_agent(self):
         from solstice_agent.tools.registry import ToolRegistry
@@ -674,8 +753,11 @@ class TestConfig:
         config = Config()
         assert config.provider == "openai"
         assert config.temperature == 0.7
-        assert config.enable_terminal is True
-        assert config.enable_web is True
+        assert config.runtime_profile == ""
+        flags = config.resolve_tool_flags()
+        assert flags["enable_terminal"] is True
+        assert flags["enable_web"] is True
+        assert flags["enable_browser"] is False
 
     def test_env_detection_openai(self):
         from solstice_agent.config import Config
@@ -1011,6 +1093,46 @@ class TestGateway:
         mgr = GatewayManager()
         result = mgr.send_proactive(ChannelType.TELEGRAM, "user", "hello")
         assert result["success"] is False
+
+    def test_gateway_message_routing_identity_is_channel_scoped_by_default(self):
+        from datetime import datetime
+        from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+        telegram_msg = GatewayMessage(
+            id="gw-1",
+            channel=ChannelType.TELEGRAM,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-123",
+            text="hi",
+            timestamp=datetime.now(),
+        )
+        slack_msg = GatewayMessage(
+            id="gw-2",
+            channel=ChannelType.SLACK,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-123",
+            text="hi",
+            timestamp=datetime.now(),
+        )
+
+        assert telegram_msg.routing_identity() == "telegram:user-123"
+        assert slack_msg.routing_identity() == "slack:user-123"
+
+    def test_gateway_message_routing_identity_can_be_shared_across_channels(self):
+        from datetime import datetime
+        from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+        msg = GatewayMessage(
+            id="gw-3",
+            channel=ChannelType.SLACK,
+            direction=MessageDirection.INBOUND,
+            sender_id="slack-user",
+            text="hi",
+            timestamp=datetime.now(),
+            channel_metadata={"identity_key": "customer:alice"},
+        )
+
+        assert msg.routing_identity() == "customer:alice"
 
 
 # ============================================================
@@ -1655,8 +1777,25 @@ class TestConfigNewFields:
     def test_defaults(self):
         from solstice_agent.config import Config
         config = Config()
-        assert config.enable_skills is True
-        assert config.enable_cron is True
+        flags = config.resolve_tool_flags()
+        assert flags["enable_skills"] is True
+        assert flags["enable_cron"] is True
+
+    def test_runtime_profile_defaults(self):
+        from solstice_agent.config import Config
+        config = Config(runtime_profile="gateway")
+        flags = config.resolve_tool_flags("developer")
+        assert flags["enable_terminal"] is False
+        assert flags["enable_web"] is False
+        assert flags["enable_memory"] is True
+        assert flags["enable_browser"] is False
+
+    def test_explicit_tool_flag_overrides_profile(self):
+        from solstice_agent.config import Config
+        config = Config(runtime_profile="gateway", enable_web=True)
+        flags = config.resolve_tool_flags("developer")
+        assert flags["enable_terminal"] is False
+        assert flags["enable_web"] is True
 
     def test_multi_agent_defaults(self):
         from solstice_agent.config import Config
@@ -1784,6 +1923,17 @@ class TestAgentConfig:
         assert flags["enable_blackbox"] is False
         assert flags["enable_browser"] is True  # default
 
+    def test_from_dict_with_profile(self):
+        from solstice_agent.agent.router import AgentConfig
+        cfg = AgentConfig.from_dict("gateway-safe", {
+            "profile": "gateway",
+        })
+        flags = cfg.resolved_tool_flags()
+        assert cfg.runtime_profile == "gateway"
+        assert flags["enable_terminal"] is False
+        assert flags["enable_web"] is False
+        assert flags["enable_memory"] is True
+
     def test_from_dict_inline_personality(self):
         from solstice_agent.agent.router import AgentConfig
         cfg = AgentConfig.from_dict("research", {
@@ -1802,7 +1952,10 @@ class TestAgentConfig:
         assert cfg.provider == ""
         assert cfg.personality_spec == "default"
         flags = cfg.resolved_tool_flags()
-        assert all(flags.values())  # All enabled by default
+        assert flags["enable_terminal"] is True
+        assert flags["enable_web"] is True
+        assert flags["enable_browser"] is True
+        assert flags["enable_memory"] is True
 
     def test_defaults(self):
         from solstice_agent.agent.router import AgentConfig
@@ -2085,6 +2238,33 @@ class TestGatewayMultiAgent:
         result = mgr._process_message(msg)
         assert result == "hello"
         mock_agent.chat.assert_called_once_with("hi")
+
+    def test_gateway_manager_uses_routing_identity_for_pool_isolation(self):
+        from datetime import datetime
+        from solstice_agent.gateway.manager import GatewayManager
+        from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+        pool = MagicMock()
+        router = MagicMock()
+        router.route.return_value = "default"
+        agent = MagicMock()
+        agent.chat.return_value = "ok"
+        pool.get_agent.return_value = agent
+
+        mgr = GatewayManager(pool=pool, router=router)
+        msg = GatewayMessage(
+            id="gw-identity",
+            channel=ChannelType.SLACK,
+            direction=MessageDirection.INBOUND,
+            sender_id="slack-42",
+            text="hello",
+            timestamp=datetime.now(),
+            channel_metadata={"identity_key": "customer:42"},
+        )
+
+        result = mgr._process_message(msg)
+        assert result == "ok"
+        pool.get_agent.assert_called_once_with("default", sender_id="customer:42")
 
 
 if __name__ == "__main__":

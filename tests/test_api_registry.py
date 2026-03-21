@@ -569,7 +569,7 @@ class TestRegistryIntegration:
         from solstice_agent.config import Config
         config = Config()
         assert hasattr(config, "enable_registry")
-        assert config.enable_registry is True
+        assert config.resolve_tool_flags()["enable_registry"] is True
 
 
 # ---------------------------------------------------------------------------

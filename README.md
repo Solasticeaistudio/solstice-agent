@@ -28,6 +28,30 @@
 
 ## Quick Install
 
+Pick the provider path you actually want:
+
+**Base package + Ollama**:
+```bash
+pipx install solstice-agent
+```
+
+**OpenAI**:
+```bash
+pipx install 'solstice-agent[openai]'
+```
+
+**Anthropic**:
+```bash
+pipx install 'solstice-agent[anthropic]'
+```
+
+**Gemini**:
+```bash
+pipx install 'solstice-agent[gemini]'
+```
+
+If you want the one-line installers, they install the OpenAI extra by default.
+
 **Windows** (PowerShell):
 ```powershell
 irm https://raw.githubusercontent.com/Solasticeaistudio/solstice-agent/main/install.ps1 | iex
@@ -43,6 +67,12 @@ Then:
 ```bash
 sol --setup
 sol
+```
+
+For gateway deployments, set an explicit workspace root:
+
+```bash
+sol-gateway --profile gateway --workspace-root /absolute/path/to/workspace
 ```
 
 Legacy aliases still work:
@@ -70,7 +100,7 @@ memory, voice, scheduling, browser control, and local-first guardrails.
 - Runs on normal computers
 - Open source and MIT licensed
 - Local-first by default
-- Works with OpenAI, Anthropic, Gemini, or Ollama
+- Works with OpenAI, Anthropic, Gemini, or Ollama when the matching provider path is installed
 - Uses real tools instead of pretending
 - Same agent across terminal, desktop, and messaging channels
 
@@ -79,6 +109,10 @@ memory, voice, scheduling, browser control, and local-first guardrails.
 Sol ships with built-in tools across files, browser, terminal, web, API discovery,
 voice, screen capture, recording, Docker sandboxing, scheduling, memory, and
 cross-channel messaging.
+
+It also supports external connectors installed into the same Python environment.
+That interface stays public, while deep Artemis integrations can ship as separate
+packages. Connector loading and boundary details live in `docs/CONNECTORS.md`.
 
 What that means in practice:
 
@@ -148,6 +182,10 @@ export GATEWAY_TELEGRAM_BOT_TOKEN=your-token
 sol-gateway
 ```
 
+For Outlook/Graph email channels, Sol can use either a direct `GATEWAY_EMAIL_GRAPH_TOKEN`
+or a shared MSAL cache from an existing desktop integration such as
+`C:\dev\Solstice-EIM\data\outlook_token.json`.
+
 ## Talk to It by Voice
 
 Say "hey Sol" and start talking. Sol can listen through your microphone, maintain a
@@ -189,6 +227,10 @@ You can also just ask:
 - Demo scripts: `docs/DEMO.md`
 - Benchmarks: `docs/BENCHMARKS.md`
 - One-pager: `docs/ONEPAGER.md`
+- Connector interface: `docs/CONNECTORS.md`
+- War Room bootstrap: `docs/WAR_ROOM_AGENT_BOOTSTRAP.md`
+- Outreach user guide: `docs/OUTREACH_USER_GUIDE.md`
+- War Room env reference: `docs/WAR_ROOM_ENV_REFERENCE.md`
 
 ## Install Options
 
@@ -198,23 +240,33 @@ If you prefer the cleanest CLI install:
 pipx install solstice-agent
 ```
 
+Provider extras:
+
+```bash
+pipx install 'solstice-agent[openai]'
+pipx install 'solstice-agent[anthropic]'
+pipx install 'solstice-agent[gemini]'
+```
+
 If you prefer manual install:
 
 ```bash
-pip install solstice-agent[all]
+pip install 'solstice-agent[all]'
 ```
 
 Or install only what you need:
 
 ```bash
 pip install solstice-agent
-pip install solstice-agent[openai]
-pip install solstice-agent[voice]
-pip install solstice-agent[browser]
-pip install solstice-agent[gateway]
-pip install solstice-agent[screen]
-pip install solstice-agent[recording]
-pip install solstice-agent[docker]
+pip install 'solstice-agent[openai]'
+pip install 'solstice-agent[anthropic]'
+pip install 'solstice-agent[gemini]'
+pip install 'solstice-agent[voice]'
+pip install 'solstice-agent[browser]'
+pip install 'solstice-agent[gateway]'
+pip install 'solstice-agent[screen]'
+pip install 'solstice-agent[recording]'
+pip install 'solstice-agent[docker]'
 ```
 
 Browser support requires:
@@ -227,7 +279,9 @@ playwright install chromium
 
 Sol is intentionally powerful, so the safety story matters.
 
+- Runtime profiles make tool defaults explicit: `local_safe`, `developer`, `gateway`, `power_user`
 - Network requests are checked for SSRF and blocked from private/internal targets
+- Gateway file operations fail closed unless `workspace_root` is configured
 - File operations are sandboxed to the workspace and sensitive paths are blocked
 - Dangerous terminal commands require explicit confirmation
 - Browser execution is constrained
@@ -235,6 +289,8 @@ Sol is intentionally powerful, so the safety story matters.
 - Gateway server binds to localhost by default and uses token auth when exposed
 
 Security validation is centralized in `solstice_agent/tools/security.py` for auditing.
+
+Dedicated security guide: `docs/SECURITY.md`
 
 ## Architecture
 

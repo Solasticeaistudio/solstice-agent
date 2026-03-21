@@ -128,18 +128,37 @@ class TestValidatePath:
         else:
             import solstice_agent.tools.security as sec
             sec._workspace_root = None
+            sec._workspace_required = False
 
     def test_allows_when_no_workspace_set(self):
         from solstice_agent.tools.security import validate_path
         import solstice_agent.tools.security as sec
         old = sec._workspace_root
+        old_required = sec._workspace_required
         sec._workspace_root = None
+        sec._workspace_required = False
         try:
             # Non-sensitive path with no workspace set — allowed
             result = validate_path("/tmp/test.txt", "read")
             assert result is None
         finally:
             sec._workspace_root = old
+            sec._workspace_required = old_required
+
+    def test_blocks_when_workspace_required_but_missing(self):
+        from solstice_agent.tools.security import validate_path
+        import solstice_agent.tools.security as sec
+        old = sec._workspace_root
+        old_required = sec._workspace_required
+        sec._workspace_root = None
+        sec._workspace_required = True
+        try:
+            result = validate_path("/tmp/test.txt", "read")
+            assert result is not None
+            assert "no workspace" in result.lower()
+        finally:
+            sec._workspace_root = old
+            sec._workspace_required = old_required
 
 
 class TestSanitizeTitle:

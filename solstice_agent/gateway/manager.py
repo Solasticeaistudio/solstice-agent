@@ -333,7 +333,7 @@ class GatewayManager:
             # Multi-agent routing
             agent_name = self._router.route(msg)
             try:
-                agent = self._pool.get_agent(agent_name, sender_id=msg.sender_id)
+                agent = self._pool.get_agent(agent_name, sender_id=msg.routing_identity())
             except ValueError as e:
                 log.error(f"Agent pool error: {e}")
                 return "Agent not configured."

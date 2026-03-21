@@ -58,7 +58,10 @@ class GeminiProvider(BaseLLMProvider):
             from google import genai
             from google.genai import types
         except ImportError:
-            raise ImportError("Gemini provider requires: pip install google-genai")
+            raise ImportError(
+                "Gemini provider requires the Gemini extra. "
+                "Install with: pip install \"solstice-agent[gemini]\""
+            )
 
         self._normalize_process_env()
         client = genai.Client(api_key=self.api_key)
@@ -160,7 +163,10 @@ class GeminiProvider(BaseLLMProvider):
             from google import genai
             from google.genai import types
         except ImportError:
-            raise ImportError("Gemini provider requires: pip install google-genai")
+            raise ImportError(
+                "Gemini provider requires the Gemini extra. "
+                "Install with: pip install \"solstice-agent[gemini]\""
+            )
 
         self._normalize_process_env()
         client = genai.Client(api_key=self.api_key)

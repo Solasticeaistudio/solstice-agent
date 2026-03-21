@@ -53,7 +53,9 @@ fi
 # --- Step 2: Install solstice-agent ---
 step "Installing Sol..."
 
-$PYTHON -m pip install --upgrade solstice-agent 2>&1 | while IFS= read -r line; do
+PACKAGE_SPEC="solstice-agent[openai]"
+
+$PYTHON -m pip install --upgrade "$PACKAGE_SPEC" 2>&1 | while IFS= read -r line; do
     if echo "$line" | grep -q "Successfully installed"; then
         ok "$line"
     elif echo "$line" | grep -q "WARNING.*not on PATH"; then
@@ -144,7 +146,12 @@ else
 fi
 
 echo ""
-echo "    sol --setup              # First-time setup (pick your AI provider)"
+echo "    sol --setup              # First-time setup (OpenAI extra installed by default)"
 echo "    sol                      # Start talking to Sol"
 echo "    solstice-agent           # Legacy command still works"
+echo ""
+echo "  Want a different provider?"
+echo "    $PYTHON -m pip install 'solstice-agent[anthropic]'"
+echo "    $PYTHON -m pip install 'solstice-agent[gemini]'"
+echo "    # Ollama works with the base package once Ollama is running"
 echo ""

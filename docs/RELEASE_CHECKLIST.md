@@ -22,16 +22,18 @@ ruff check solstice_agent/
 3. Verify the commands from a clean install:
 ```bash
 python -m venv .release-smoke
-.release-smoke/bin/python -m pip install --upgrade pip setuptools wheel
 .release-smoke/bin/python -m pip install .
+.release-smoke/bin/sol --help
+.release-smoke/bin/python -m pip install 'solstice-agent[openai]'
 .release-smoke/bin/sol --help
 ```
 
 Windows:
 ```powershell
 python -m venv .release-smoke
-.\.release-smoke\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
 .\.release-smoke\Scripts\python.exe -m pip install .
+.\.release-smoke\Scripts\sol.exe --help
+.\.release-smoke\Scripts\python.exe -m pip install "solstice-agent[openai]"
 .\.release-smoke\Scripts\sol.exe --help
 ```
 
@@ -55,6 +57,8 @@ python -m venv .release-smoke
 1. Fresh-machine or fresh-venv install:
 ```bash
 pipx install solstice-agent
+sol --help
+pipx install 'solstice-agent[openai]'
 sol --help
 ```
 

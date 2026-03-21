@@ -24,6 +24,7 @@ class ToolRegistry:
     def __init__(self):
         self._handlers: Dict[str, Callable] = {}
         self._schemas: Dict[str, Dict[str, Any]] = {}
+        self._loaded_connectors: List[str] = []
 
     def register(self, name: str, handler: Callable, schema: Dict[str, Any]):
         """Register a single tool."""
@@ -128,6 +129,8 @@ class ToolRegistry:
                 try:
                     register_fn = ep.load()
                     register_fn(self)
+                    if ep.name not in self._loaded_connectors:
+                        self._loaded_connectors.append(ep.name)
                     log.info(f"Artemis connector loaded: {ep.name}")
                 except Exception as e:
                     log.warning(f"Failed to load Artemis connector '{ep.name}': {e}")
@@ -146,3 +149,7 @@ class ToolRegistry:
     def get_schema(self, name: str) -> Dict[str, Any]:
         """Get schema for a specific tool."""
         return self._schemas.get(name, {})
+
+    def list_connectors(self) -> List[str]:
+        """Get the names of successfully loaded external connectors."""
+        return list(self._loaded_connectors)

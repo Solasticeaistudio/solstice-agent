@@ -134,6 +134,7 @@ def validate_url(url: str, allow_private: bool = False) -> Optional[str]:
 
 # Default workspace root — set by CLI/server at startup
 _workspace_root: Optional[str] = None
+_workspace_required: bool = False
 
 # Paths that should never be touched regardless of workspace
 _ALWAYS_BLOCKED = [
@@ -145,20 +146,31 @@ _ALWAYS_BLOCKED = [
 ]
 
 
-def set_workspace_root(root: str):
+def set_workspace_root(root: Optional[str], required: bool = False):
     """Set the workspace root for path sandboxing.
 
     Called at startup by CLI or server. All file operations are
     restricted to paths within this root (or its subdirectories).
     """
-    global _workspace_root
-    _workspace_root = os.path.realpath(root)
-    log.info(f"Workspace root set: {_workspace_root}")
+    global _workspace_root, _workspace_required
+    _workspace_required = required
+    _workspace_root = os.path.realpath(root) if root else None
+    if _workspace_root:
+        log.info(f"Workspace root set: {_workspace_root}")
+    elif _workspace_required:
+        log.warning("Workspace root is required but not configured.")
+    else:
+        log.info("Workspace root cleared.")
 
 
 def get_workspace_root() -> Optional[str]:
     """Get the current workspace root, or None if unset."""
     return _workspace_root
+
+
+def is_workspace_required() -> bool:
+    """Get whether path validation should fail closed without a workspace root."""
+    return _workspace_required
 
 
 def validate_path(path: str, operation: str = "access") -> Optional[str]:
@@ -174,6 +186,9 @@ def validate_path(path: str, operation: str = "access") -> Optional[str]:
     for pattern in _ALWAYS_BLOCKED:
         if pattern.search(resolved):
             return f"Cannot {operation}: path matches a sensitive file pattern."
+
+    if _workspace_root is None and _workspace_required:
+        return f"Cannot {operation}: no workspace directory is configured."
 
     # Check workspace boundary if set
     if _workspace_root is not None:

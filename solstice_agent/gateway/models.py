@@ -58,3 +58,18 @@ class GatewayMessage:
     @staticmethod
     def new_id() -> str:
         return f"gw-{uuid.uuid4().hex[:12]}"
+
+    def routing_identity(self) -> str:
+        """Return the identity key used for per-sender agent isolation.
+
+        By default, identities are channel-scoped to avoid accidental cross-channel
+        collisions. Channels can opt into shared identity by providing
+        `identity_key` or `external_user_id` in channel_metadata.
+        """
+        explicit = (
+            self.channel_metadata.get("identity_key")
+            or self.channel_metadata.get("external_user_id")
+        )
+        if explicit:
+            return str(explicit)
+        return f"{self.channel.value}:{self.sender_id}"

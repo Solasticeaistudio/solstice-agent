@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "solstice-agent"
 version = "0.2.4"
-description = "Your personal AI agent. 72 built-in tools, 21 messaging channels, voice, vision, and persistent memory. Runs locally."
+description = "Local-first AI agent with tools, memory, messaging gateway support, and optional provider extras."
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     {name = "Solstice Studio"},
@@ -30,11 +30,6 @@ classifiers = [
 dependencies = [
     "httpx>=0.25.0",
     "pyyaml>=6.0",
-    # LLM providers (at least one required)
-    "openai>=1.0",
-    "anthropic>=0.30",
-    "google-genai>=1.0",
-    # Web search (lightweight)
     "duckduckgo-search>=6.0",
 ]
 

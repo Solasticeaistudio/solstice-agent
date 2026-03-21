@@ -32,7 +32,10 @@ class AnthropicProvider(BaseLLMProvider):
         try:
             import anthropic
         except ImportError:
-            raise ImportError("Anthropic provider requires: pip install anthropic")
+            raise ImportError(
+                "Anthropic provider requires the Anthropic extra. "
+                "Install with: pip install \"solstice-agent[anthropic]\""
+            )
 
         client = anthropic.Anthropic(api_key=self.api_key)
 
@@ -123,7 +126,10 @@ class AnthropicProvider(BaseLLMProvider):
         try:
             import anthropic
         except ImportError:
-            raise ImportError("Anthropic provider requires: pip install anthropic")
+            raise ImportError(
+                "Anthropic provider requires the Anthropic extra. "
+                "Install with: pip install \"solstice-agent[anthropic]\""
+            )
 
         client = anthropic.Anthropic(api_key=self.api_key)
 

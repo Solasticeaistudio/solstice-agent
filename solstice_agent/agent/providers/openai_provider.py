@@ -27,7 +27,10 @@ class OpenAIProvider(BaseLLMProvider):
             try:
                 from openai import OpenAI
             except ImportError:
-                raise ImportError("OpenAI provider requires: pip install openai")
+                raise ImportError(
+                    "OpenAI provider requires the OpenAI extra. "
+                    "Install with: pip install \"solstice-agent[openai]\""
+                )
             client_kwargs = {"api_key": self.api_key}
             if self._base_url:
                 client_kwargs["base_url"] = self._base_url

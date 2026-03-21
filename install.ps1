@@ -46,7 +46,9 @@ if (-not $python) {
 # --- Step 2: Install solstice-agent ---
 Write-Step "Installing Sol..."
 
-& $python -m pip install --upgrade solstice-agent 2>&1 | ForEach-Object {
+$packageSpec = "solstice-agent[openai]"
+
+& $python -m pip install --upgrade $packageSpec 2>&1 | ForEach-Object {
     if ($_ -match "Successfully installed") { Write-OK $_ }
     elseif ($_ -match "WARNING.*not on PATH") { } # We handle this below
     elseif ($_ -match "Requirement already satisfied") { } # Quiet
@@ -145,7 +147,12 @@ if ($needsPathFix) {
 }
 
 Write-Host ""
-Write-Host "    sol --setup              # First-time setup (pick your AI provider)" -ForegroundColor White
+Write-Host "    sol --setup              # First-time setup (OpenAI extra installed by default)" -ForegroundColor White
 Write-Host "    sol                      # Start talking to Sol" -ForegroundColor White
 Write-Host "    solstice-agent           # Legacy command still works" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "  Want a different provider?" -ForegroundColor Cyan
+Write-Host "    $python -m pip install ""solstice-agent[anthropic]""" -ForegroundColor White
+Write-Host "    $python -m pip install ""solstice-agent[gemini]"""     -ForegroundColor White
+Write-Host "    # Ollama works with the base package once Ollama is running" -ForegroundColor DarkGray
 Write-Host ""

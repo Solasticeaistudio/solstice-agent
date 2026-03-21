@@ -1,16 +1,17 @@
 """
-Interactive Setup — Conversational Onboarding
-==============================================
-Not a form. A conversation. Walks anyone through setup,
-even if they've never touched an API key in their life.
+Interactive setup and first-run onboarding.
 
 Run: sol --setup
 """
 
+import importlib.util
 import os
+import random
 import sys
 import time
-import random
+from pathlib import Path
+
+import httpx
 
 from .config import default_config_path
 
@@ -24,14 +25,22 @@ RESET = "\033[0m"
 WHITE = "\033[97m"
 
 
+PROFILE_CHOICES = {
+    "1": "local_safe",
+    "2": "developer",
+    "3": "gateway",
+    "4": "power_user",
+}
+
+
 def _type(text: str, pause: float = 0.01):
-    """Print with a subtle typing effect. Feels alive without being slow."""
+    """Print with a subtle typing effect."""
     for char in text:
         sys.stdout.write(char)
         sys.stdout.flush()
-        if char in '.!?\n':
+        if char in ".!?\n":
             time.sleep(pause * 8)
-        elif char == ',':
+        elif char == ",":
             time.sleep(pause * 4)
         else:
             time.sleep(pause)
@@ -39,7 +48,7 @@ def _type(text: str, pause: float = 0.01):
 
 
 def _say(text: str):
-    """Agent speaks. Cyan, with a subtle pause before."""
+    """Agent speaks."""
     time.sleep(0.15)
     print(f"  {CYAN}{text}{RESET}")
 
@@ -81,46 +90,140 @@ def _wait():
     time.sleep(0.4)
 
 
+def _yaml_quote(value: str) -> str:
+    """Quote free-form strings so YAML keeps them literal."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _provider_extra_installed(provider: str) -> bool:
+    """Best-effort check for optional provider SDKs."""
+    module_name = {
+        "openai": "openai",
+        "anthropic": "anthropic",
+        "gemini": "google.genai",
+        "ollama": "",
+    }.get(provider, "")
+    return not module_name or importlib.util.find_spec(module_name) is not None
+
+
+def _provider_install_hint(provider: str) -> str:
+    if provider == "openai":
+        return "pip install \"solstice-agent[openai]\""
+    if provider == "anthropic":
+        return "pip install \"solstice-agent[anthropic]\""
+    if provider == "gemini":
+        return "pip install \"solstice-agent[gemini]\""
+    return ""
+
+
+def _choose_runtime_profile() -> str:
+    """Ask how the user wants Sol to run."""
+    _say("Next: how should I behave on this machine?")
+    _say("These profiles control my default tool access and safety posture.")
+    print()
+    print(f"  {GREEN}1{RESET}  {BOLD}local_safe{RESET}  - Safe local default. Files, memory, web, cron.")
+    print(f"  {GREEN}2{RESET}  {BOLD}developer{RESET}   - Local coding workflow. Adds browser, terminal, Docker.")
+    print(f"  {GREEN}3{RESET}  {BOLD}gateway{RESET}     - Messaging/server mode. Tight by default, workspace required.")
+    print(f"  {GREEN}4{RESET}  {BOLD}power_user{RESET}  - Broad local access. Most tools enabled.")
+    print()
+    _say_dim("If you're not sure, pick 1 for a local-first default or 2 for development work.")
+    print()
+    choice = _ask("Which profile should I start with? [1-4]", default="1")
+    return PROFILE_CHOICES.get(choice, "local_safe")
+
+
+def _next_steps(provider: str, profile: str, workspace_root: str, setup_gateway: bool) -> list[str]:
+    """Return the most relevant next commands for the chosen path."""
+    steps = []
+    if provider == "ollama":
+        steps.append("ollama serve               # Start the local model server if it is not already running")
+    if profile == "gateway":
+        steps.append(f"sol-gateway --profile gateway --workspace-root \"{workspace_root}\"")
+        steps.append("sol                         # Open a local chat against the same config")
+    elif setup_gateway:
+        steps.append("sol                         # Start a local conversation first")
+        steps.append(f"sol-gateway --workspace-root \"{workspace_root}\"")
+    else:
+        steps.append("sol                         # Start a conversation")
+        steps.append("sol \"hello\"                 # Quick one-liner")
+    return steps
+
+
+def _validate_workspace_root(workspace_root: str) -> tuple[str, str]:
+    path = Path(workspace_root).expanduser()
+    if path.exists() and path.is_dir():
+        return ("ok", f"Workspace root exists: {path}")
+    if path.exists():
+        return ("warn", f"Workspace root is not a directory: {path}")
+    return ("warn", f"Workspace root does not exist yet: {path}")
+
+
+def _validate_provider_path(provider: str, has_api_key: bool) -> tuple[str, str]:
+    if provider == "ollama":
+        return ("ok", "Ollama selected. No cloud API key required.")
+    if not _provider_extra_installed(provider):
+        return ("warn", f"Provider package missing. Install with: {_provider_install_hint(provider)}")
+    if has_api_key:
+        return ("ok", f"{provider} provider package and API key look configured.")
+    return ("warn", f"{provider} provider package is installed, but no API key was saved in config.")
+
+
+def _validate_ollama_connection(ollama_url: str) -> tuple[str, str]:
+    try:
+        response = httpx.get(f"{ollama_url.rstrip('/')}/api/tags", timeout=2.0)
+        if response.status_code < 400:
+            return ("ok", f"Ollama is reachable at {ollama_url}.")
+        return ("warn", f"Ollama responded with HTTP {response.status_code} at {ollama_url}.")
+    except Exception as exc:
+        return ("warn", f"Could not reach Ollama at {ollama_url}: {exc}")
+
+
+def _post_setup_checks(
+    provider: str,
+    workspace_root: str,
+    has_api_key: bool,
+    ollama_url: str = "",
+) -> list[tuple[str, str]]:
+    checks = [
+        _validate_workspace_root(workspace_root),
+        _validate_provider_path(provider, has_api_key),
+    ]
+    if provider == "ollama":
+        checks.append(_validate_ollama_connection(ollama_url))
+    return checks
+
+
 def run_setup(config_path: str | None = None):
     """The main onboarding experience."""
-
     config_lines = []
+    api_key_saved = False
+    ollama_url = ""
 
-    # ─── Introduction ────────────────────────────────────────
     print()
     _say("Hey! I'm Sol.")
     _wait()
-    _say("I'm an AI agent — which basically means I can actually do things")
-    _say("on your computer, not just talk about doing them.")
+    _say("I'm an AI agent, which means I can actually do things on your computer.")
+    _say("Not just talk about them.")
     _wait()
     print()
-    _say("I can read and edit your files, run commands in your terminal,")
-    _say("search the web, and you can even talk to me through Telegram,")
-    _say("Discord, Slack... whatever you use.")
-    _wait()
-    print()
-    _say("Let's get you set up. I'll walk you through everything.")
-    _say("Should take about 2 minutes.")
+    _say("Let's get you into a usable state quickly.")
+    _say("This should take about 2 minutes.")
     print()
 
     input(f"  {DIM}Press Enter to start...{RESET}")
     print()
 
-    # ─── Brain: Which AI to use ──────────────────────────────
-    _say("First things first — I need a brain.")
+    _say("First, I need a brain.")
     _wait()
-    _say("I can use different AI models to think. You pick which one")
-    _say("you want me to run on. Here are your options:")
+    _say("Pick the model provider you want me to run on.")
     print()
-    print(f"  {GREEN}1{RESET}  {BOLD}OpenAI{RESET}       — GPT-4o, o1, o3. The most popular one.")
-    print(f"  {GREEN}2{RESET}  {BOLD}Anthropic{RESET}    — Claude. Known for being really thoughtful.")
-    print(f"  {GREEN}3{RESET}  {BOLD}Google{RESET}       — Gemini. Fast, can search the web natively.")
-    print(f"  {GREEN}4{RESET}  {BOLD}Ollama{RESET}       — Run AI {BOLD}locally{RESET} on your own machine. {GREEN}Free.{RESET}")
-    print(f"  {GREEN}5{RESET}  {BOLD}Other{RESET}        — Got your own AI server? I can connect to it.")
+    print(f"  {GREEN}1{RESET}  {BOLD}OpenAI{RESET}       - GPT models.")
+    print(f"  {GREEN}2{RESET}  {BOLD}Anthropic{RESET}    - Claude models.")
+    print(f"  {GREEN}3{RESET}  {BOLD}Google{RESET}       - Gemini models.")
+    print(f"  {GREEN}4{RESET}  {BOLD}Ollama{RESET}       - Fully local models on your own machine.")
+    print(f"  {GREEN}5{RESET}  {BOLD}Other{RESET}        - Your own OpenAI-compatible endpoint.")
     print()
-
-    _say_dim("If you're not sure, 1 (OpenAI) is the most common choice.")
-    _say_dim("If you want free and private, 4 (Ollama) runs everything on your machine.")
+    _say_dim("If you're not sure, OpenAI is the easiest cloud path and Ollama is the easiest local path.")
     print()
 
     choice = _ask("Which one sounds good? [1-5]", default="1")
@@ -132,8 +235,14 @@ def run_setup(config_path: str | None = None):
     provider_name = provider_names.get(provider, "OpenAI")
     print()
     _say(f"Nice, {provider_name} it is.")
+    if provider in {"openai", "anthropic", "gemini"}:
+        print()
+        if _provider_extra_installed(provider):
+            _say_dim(f"Provider package detected for {provider_name}.")
+        else:
+            _say("One quick heads-up: this environment does not look like it has that provider package installed yet.")
+            _say_dim(f"Install it before first use with: {_provider_install_hint(provider)}")
 
-    # ─── Model ───────────────────────────────────────────────
     defaults = {
         "openai": "gpt-4o",
         "anthropic": "claude-sonnet-4-5-20250929",
@@ -144,56 +253,45 @@ def run_setup(config_path: str | None = None):
     if choice == "5":
         _wait()
         print()
-        _say("Cool, you've got your own setup. I just need two things:")
+        _say("Cool, you've got your own setup. I just need two things.")
         print()
         base_url = _ask("What's the API URL? (e.g. http://localhost:1234/v1)")
         model = _ask("And the model name?")
-        config_lines.append(f"base_url: \"{base_url}\"")
+        config_lines.append(f"base_url: {_yaml_quote(base_url)}")
         config_lines.append(f"model: {model}")
     else:
         default_model = defaults.get(provider, "gpt-4o")
         _wait()
         print()
-        _say("Each provider has different models. I'll default to their best")
-        _say("all-around option, but you can change it if you want.")
+        _say("I'll default to a solid all-around model, but you can change it now if you want.")
         print()
         model = _ask("Model", default=default_model)
         config_lines.append(f"model: {model}")
 
-    # ─── API Key ─────────────────────────────────────────────
     print()
     if provider == "ollama":
-        _say("Here's the cool part — Ollama is completely free.")
-        _say("It runs the AI model right on your computer. No account needed.")
+        _say("Ollama runs locally, so no cloud account is required.")
         _wait()
         print()
-        _say("You just need Ollama installed and running. Quick checklist:")
-        print()
-        _say_dim("  1. Download Ollama from https://ollama.ai (it's a small app)")
-        _say_dim(f"  2. Open a terminal and run: ollama pull {model}")
-        _say_dim("     (this downloads the model — might take a few minutes)")
-        _say_dim("  3. Start it with: ollama serve")
+        _say("Quick checklist:")
+        _say_dim("  1. Install Ollama from https://ollama.ai")
+        _say_dim(f"  2. Run: ollama pull {model}")
+        _say_dim("  3. Run: ollama serve")
         print()
 
         if _ask_yn("Already have Ollama running?"):
             _say("Perfect, we're good to go.")
         else:
-            _say("No rush. Install it whenever you're ready, then come back")
-            _say(f"and just run {BOLD}sol{RESET}{CYAN} — I'll be here.{RESET}")
+            _say("No problem. You can finish the install and come back.")
 
         print()
         ollama_url = _ask("Where is Ollama running?", default="http://localhost:11434")
-        config_lines.append(f"ollama_base_url: \"{ollama_url}\"")
+        config_lines.append(f"ollama_base_url: {_yaml_quote(ollama_url)}")
     else:
-        # Need an API key — explain what it is for non-technical users
-        _say("Okay, now I need an API key.")
+        _say("Now I need an API key.")
         _wait()
         print()
-
-        _say("If you're thinking \"what's an API key?\" — totally fair.")
-        _say("Think of it like a password that lets me talk to the AI service.")
-        _say(f"You get one from {provider_name}'s website. It's free to sign up,")
-        _say("and they usually give you some free credits to start with.")
+        _say("Think of it like the credential that lets me talk to the model provider.")
         print()
 
         key_env_var = {
@@ -203,143 +301,118 @@ def run_setup(config_path: str | None = None):
         }.get(provider, "SOLSTICE_API_KEY")
 
         existing_key = os.getenv(key_env_var, "")
-
         if existing_key:
-            _say("Oh wait — I actually found one already!")
-            _say(f"You have {BOLD}{key_env_var}{RESET}{CYAN} set in your environment ({existing_key[:8]}...){RESET}")
+            _say("I found one in your environment already.")
+            _say(f"{key_env_var} is set ({existing_key[:8]}...).")
             print()
             use_existing = _ask_yn("Want me to use that one?")
             if use_existing:
                 api_key = ""
-                _say("Done. Using your existing key.")
+                _say("Done. I'll use the environment variable.")
             else:
                 api_key = _ask("Paste your API key here")
         else:
             where_to_get = {
-                "openai": ("https://platform.openai.com/api-keys", [
-                    "Go to platform.openai.com and sign in (or create an account)",
-                    "Click your profile icon (top right) -> 'API keys'",
-                    "Click 'Create new secret key'",
-                    "Give it a name (anything — like 'solstice') and click 'Create'",
-                    "Copy the key (starts with 'sk-'). You won't be able to see it again!",
-                ]),
-                "anthropic": ("https://console.anthropic.com/settings/keys", [
-                    "Go to console.anthropic.com and sign in (or create an account)",
-                    "Click 'Settings' in the sidebar, then 'API keys'",
-                    "Click 'Create Key'",
-                    "Give it a name and click 'Create'",
-                    "Copy the key (starts with 'sk-ant-')",
-                ]),
-                "gemini": ("https://aistudio.google.com/apikey", [
-                    "Go to aistudio.google.com/apikey",
-                    "Sign in with your Google account",
-                    "Click 'Create API key'",
-                    "Pick any Google Cloud project (or create one — it's free)",
-                    "Copy the key (starts with 'AI')",
-                ]),
+                "openai": "https://platform.openai.com/api-keys",
+                "anthropic": "https://console.anthropic.com/settings/keys",
+                "gemini": "https://aistudio.google.com/apikey",
             }
-
-            url, steps = where_to_get.get(provider, ("", []))
-
-            _say("Here's how to get one. It takes about 60 seconds:")
-            print()
-            for i, step in enumerate(steps, 1):
-                _say_dim(f"  {i}. {step}")
-            print()
-            _say_dim(f"  Direct link: {CYAN}{url}{RESET}")
-            print()
-
-            _say("Take your time — I'll wait right here.")
+            _say_dim(f"Get one here: {where_to_get.get(provider, '')}")
             print()
             api_key = _ask("Paste your API key")
-
             if api_key:
-                _say("Got it. I'll keep that safe.")
+                _say("Got it.")
 
         if api_key:
-            config_lines.append(f"api_key: \"{api_key}\"")
+            api_key_saved = True
+            config_lines.append(f"api_key: {_yaml_quote(api_key)}")
         else:
             config_lines.append(f"# api_key set via {key_env_var} environment variable")
 
-    # ─── Capabilities ────────────────────────────────────────
     print()
-    _say("Alright, let's talk about what I can do.")
+    profile = _choose_runtime_profile()
+    config_lines.append(f"runtime_profile: {profile}")
+
+    print()
+    _say("I also need to know what folder boundary to respect.")
+    _say("That workspace root is where my file tools are allowed to operate.")
+    print()
+    default_workspace = os.getcwd()
+    if profile == "gateway":
+        _say_dim("Gateway mode should always use an explicit workspace root.")
+        workspace_prompt = "Workspace root for gateway file access"
+    else:
+        _say_dim("Press Enter to use your current folder, or point me somewhere narrower.")
+        workspace_prompt = "Workspace root"
+    workspace_root = _ask(workspace_prompt, default=default_workspace)
+    config_lines.append(f"workspace_root: {_yaml_quote(workspace_root)}")
+
+    print()
+    _say("Profiles already set sane defaults, so you usually don't need to micromanage tools here.")
+    _say("If you want, I can apply a couple of simple overrides now.")
+    print()
+    if _ask_yn("Customize terminal/web defaults now?", default=False):
+        enable_terminal = _ask_yn("Can I use your terminal? (for running code, builds, etc.)")
+        enable_web = _ask_yn("Can I search the web?")
+        config_lines.append(f"enable_terminal: {str(enable_terminal).lower()}")
+        config_lines.append(f"enable_web: {str(enable_web).lower()}")
+    else:
+        _say("Perfect. I'll stick with the profile defaults.")
+
+    print()
+    if profile == "gateway":
+        _say("Since you picked gateway mode, channel setup is available now but still optional.")
+        _say("You can also skip this and wire channels later after the local server is up.")
+    else:
+        _say("Messaging channels are an advanced add-on. Most people set this up later.")
     _wait()
     print()
-    _say("By default, I come with a few built-in abilities:")
-    print()
-    _say_dim("  Files    — I can read, write, and edit files on your computer")
-    _say_dim("  Terminal — I can run commands (git, python, npm, etc.)")
-    _say_dim("  Web      — I can search the internet and pull info from websites")
-    print()
-    _say("You're in control of what I have access to.")
-    print()
 
-    enable_terminal = _ask_yn("Can I use your terminal? (for running code, builds, etc.)")
-    if enable_terminal:
-        _say("Awesome, that makes me way more useful.")
-    else:
-        _say("No problem. I'll stick to file operations and conversation.")
-
-    enable_web = _ask_yn("Can I search the web?")
-    if enable_web:
-        _say("Great — I'll use DuckDuckGo so there's no extra API key needed.")
-    else:
-        _say("Got it, staying offline.")
-
-    config_lines.append(f"enable_terminal: {str(enable_terminal).lower()}")
-    config_lines.append(f"enable_web: {str(enable_web).lower()}")
-
-    # ─── Messaging Gateway ───────────────────────────────────
-    print()
-    _say("One more thing — and this part's optional but pretty cool.")
-    _wait()
-    print()
-    _say("I can live inside your messaging apps. Like, you could message me")
-    _say("on Telegram or Discord and I'd respond right there, with full")
-    _say("access to all my tools. Kind of like having me in your pocket.")
-    print()
-
-    setup_gateway = _ask_yn("Want to connect me to any messaging apps?", default=False)
-
+    setup_gateway = _ask_yn("Configure messaging channels now?", default=False)
     if setup_gateway:
         config_lines.append("")
         config_lines.append("gateway_enabled: true")
         config_lines.append("gateway_channels:")
         _setup_gateway_channels(config_lines)
     else:
-        _say("No worries — you can always set this up later with --setup.")
+        _say("No worries. You can always do this later with --setup.")
 
-    # ─── Write config & goodbye ──────────────────────────────
     print()
-    _say("That's everything! Let me save your settings.")
+    _say("That's everything. Let me save your settings.")
     print()
 
     config_path = default_config_path(config_path)
     config_content = "\n".join(config_lines) + "\n"
 
-    print(f"  {DIM}{'─' * 45}{RESET}")
+    print(f"  {DIM}{'-' * 45}{RESET}")
     for line in config_content.strip().split("\n"):
         print(f"  {DIM}{line}{RESET}")
-    print(f"  {DIM}{'─' * 45}{RESET}")
+    print(f"  {DIM}{'-' * 45}{RESET}")
     print()
 
     if _ask_yn(f"Save this to {config_path.name}?"):
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
         print()
-        _say("Saved! You're all set.")
+        _say("Saved. You're all set.")
         _wait()
         print()
         _say_dim(f"Config saved to {config_path}")
         print()
-        _say("Here's how to talk to me:")
+        _say("Quick validation:")
+        for status, message in _post_setup_checks(provider, workspace_root, api_key_saved or bool(existing_key if provider != "ollama" else ""), ollama_url):
+            color = GREEN if status == "ok" else YELLOW
+            print(f"    {color}{status.upper():4}{RESET} {message}")
         print()
-        print(f"    {GREEN}sol{RESET}                        {DIM}# Start a conversation{RESET}")
-        print(f"    {GREEN}sol \"hello\"{RESET}                {DIM}# Quick one-liner{RESET}")
-        if setup_gateway:
-            print(f"    {GREEN}sol-gateway{RESET}                {DIM}# Start the messaging server{RESET}")
+        _say("Here's what to run next:")
+        print()
+        for step in _next_steps(provider, profile, workspace_root, setup_gateway):
+            if "#" in step:
+                command, comment = step.split("#", 1)
+                print(f"    {GREEN}{command.rstrip()}{RESET}  {DIM}# {comment.strip()}{RESET}")
+            else:
+                print(f"    {GREEN}{step}{RESET}")
         print()
         _say("If you need a deep enterprise integration, install an Artemis connector into the same environment.")
         _say_dim("  Example (Camunda): pipx inject solstice-agent artemis-camunda")
@@ -354,107 +427,63 @@ def run_setup(config_path: str | None = None):
 
 def _setup_gateway_channels(config_lines: list):
     """Walk through each messaging channel conversationally."""
-
     print()
-    _say("Let's pick which apps you want to connect. I'll walk you")
-    _say("through each one step by step.")
+    _say("Let's pick which apps you want to connect. I'll walk you through each one.")
     print()
 
-    # ─── Telegram ────────────────────────────────────────────
     if _ask_yn("Telegram?", default=False):
         print()
-        _say("Telegram's the easiest one to set up. Takes about 30 seconds.")
+        _say("Telegram is the quickest one to set up.")
         _wait()
         print()
-        _say("You need to create a bot on Telegram — don't worry, it's")
-        _say("just a quick chat with their bot-making bot (yes, really).")
-        print()
         _say_dim("  1. Open Telegram and search for @BotFather")
-        _say_dim("  2. Send it the message: /newbot")
-        _say_dim("  3. Pick a display name (like 'My Sol Agent')")
-        _say_dim("  4. Pick a username (like 'my_sol_bot' — must end in 'bot')")
-        _say_dim("  5. BotFather gives you a token — it looks like this:")
-        _say_dim(f"     {CYAN}123456789:AAF-some-long-random-string{RESET}")
-        print()
-        _say("Got it? Paste the token here:")
+        _say_dim("  2. Send /newbot")
+        _say_dim("  3. Pick a display name and username")
+        _say_dim("  4. Copy the bot token")
         print()
         token = _ask("Bot token")
         config_lines.append("  telegram:")
         config_lines.append("    enabled: true")
-        config_lines.append(f"    bot_token: \"{token}\"")
-        config_lines.append(f"    webhook_secret: \"sol-{random.randint(100000, 999999)}\"")
-        print()
-        _say("Nice! After you start the gateway server, you'll need to tell")
-        _say("Telegram where to send messages. I'll remind you how when")
-        _say("you run solstice-gateway.")
+        config_lines.append(f"    bot_token: {_yaml_quote(token)}")
+        config_lines.append(f"    webhook_secret: {_yaml_quote(f'sol-{random.randint(100000, 999999)}')}")
 
     print()
 
-    # ─── Discord ─────────────────────────────────────────────
     if _ask_yn("Discord?", default=False):
         print()
-        _say("Discord takes a couple more steps, but I'll walk you through it.")
+        _say("Discord takes a few extra steps in the developer portal.")
         _wait()
         print()
-        _say("You need to create a bot application on Discord's developer portal.")
-        print()
-        _say_dim("  1. Go to: discord.com/developers/applications")
-        _say_dim("  2. Click 'New Application' and give it a name")
-        _say_dim("  3. Go to the 'Bot' tab on the left")
-        _say_dim("  4. Click 'Reset Token' and copy the token it shows you")
-        print()
-        _say_dim(f"  {YELLOW}Important:{RESET} {DIM}Scroll down and turn ON 'Message Content Intent'{RESET}")
-        _say_dim(f"  {DIM}(under Privileged Gateway Intents). Without this, I can't read messages.{RESET}")
-        print()
-        _say_dim("  5. Go to 'OAuth2' -> 'URL Generator'")
-        _say_dim("     Check 'bot' under scopes")
-        _say_dim("     Check 'Send Messages' and 'Read Message History' under permissions")
-        _say_dim("  6. Copy the URL at the bottom and open it — this invites me to your server")
-        print()
-        _say_dim("  7. To get a channel ID: right-click any channel -> 'Copy Channel ID'")
-        _say_dim("     (If you don't see that option, enable Developer Mode in Discord settings)")
+        _say_dim("  1. Create a Discord application and bot")
+        _say_dim("  2. Enable Message Content Intent")
+        _say_dim("  3. Invite the bot to your server")
+        _say_dim("  4. Copy the bot token and channel IDs")
         print()
         token = _ask("Bot token")
         channel_ids = _ask("Channel ID(s) (comma-separate if multiple)")
         config_lines.append("  discord:")
         config_lines.append("    enabled: true")
-        config_lines.append(f"    bot_token: \"{token}\"")
-        config_lines.append(f"    channel_ids: \"{channel_ids}\"")
-        print()
-        _say("Discord's ready. I'll connect automatically when you start the gateway.")
+        config_lines.append(f"    bot_token: {_yaml_quote(token)}")
+        config_lines.append(f"    channel_ids: {_yaml_quote(channel_ids)}")
 
     print()
 
-    # ─── Slack ───────────────────────────────────────────────
     if _ask_yn("Slack?", default=False):
         print()
-        _say("Slack's got a few more steps because... well, it's Slack.")
+        _say("Slack needs an app, a bot token, and a signing secret.")
         _wait()
         print()
-        _say_dim("  1. Go to: api.slack.com/apps -> 'Create New App' -> 'From scratch'")
-        _say_dim("  2. Name it whatever you want, pick your workspace")
-        _say_dim("  3. Go to 'OAuth & Permissions' in the sidebar")
-        _say_dim("     Scroll to 'Bot Token Scopes' and add:")
-        _say_dim(f"     {CYAN}chat:write, channels:history, im:history, channels:read{RESET}")
-        _say_dim("  4. Click 'Install to Workspace' at the top and authorize")
-        _say_dim("  5. Copy the 'Bot User OAuth Token' (starts with xoxb-)")
-        print()
-        _say_dim("  6. Go to 'Basic Information' in the sidebar")
-        _say_dim("     Under 'App Credentials', copy the 'Signing Secret'")
-        print()
-        _say_dim("  7. Go to 'Event Subscriptions' -> toggle ON")
-        _say_dim("     You'll set the webhook URL after starting the gateway")
-        _say_dim("  8. Under 'Subscribe to bot events', add: message.channels, message.im")
+        _say_dim("  1. Create a Slack app")
+        _say_dim("  2. Add bot scopes and install it")
+        _say_dim("  3. Copy the bot token and signing secret")
+        _say_dim("  4. Enable event subscriptions after starting the gateway")
         print()
         token = _ask("Bot token (starts with xoxb-)")
         secret = _ask("Signing secret")
         config_lines.append("  slack:")
         config_lines.append("    enabled: true")
-        config_lines.append(f"    bot_token: \"{token}\"")
-        config_lines.append(f"    signing_secret: \"{secret}\"")
-        print()
-        _say("Slack's configured. Don't forget to set the Events URL after")
-        _say("starting the gateway — Slack needs to verify the connection.")
+        config_lines.append(f"    bot_token: {_yaml_quote(token)}")
+        config_lines.append(f"    signing_secret: {_yaml_quote(secret)}")
 
 
 if __name__ == "__main__":

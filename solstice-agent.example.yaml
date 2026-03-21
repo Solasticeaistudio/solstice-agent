@@ -34,13 +34,29 @@ personality_name: default  # default or coder
 temperature: 0.7
 max_tokens: 4096
 
+# --- Runtime Profile ---
+# Options: local_safe, developer, gateway, power_user
+# local_safe: local tools with conservative defaults
+# developer: browser/blackbox/docker enabled for local coding workflows
+# gateway: safe remote/message-facing defaults
+# power_user: broad capability surface, including opt-in tools
+runtime_profile: local_safe
+
 # --- Tools ---
-enable_terminal: true    # Shell command execution
-enable_web: true         # Web search + URL fetching
-enable_registry: true    # API registry/marketplace (25 pre-loaded APIs)
+# These are optional overrides on top of the runtime profile.
+# Uncomment only when you need to diverge from the selected profile.
+# enable_terminal: true
+# enable_web: true
+# enable_browser: false
+# enable_blackbox: false
+# enable_screen: false
+# enable_docker: false
+# enable_outreach: false
+# enable_registry: true
 
 # --- Gateway (messaging channels) ---
 # gateway_enabled: false
+# workspace_root: /absolute/path/to/workspace
 # gateway_channels:
 #   telegram:
 #     enabled: true

@@ -14,6 +14,8 @@ import re
 import tempfile
 from typing import Optional
 
+from .security import validate_url
+
 log = logging.getLogger("solstice.tools.browser")
 
 # ---------------------------------------------------------------------------
@@ -42,11 +44,26 @@ def _ensure_browser():
         viewport={"width": 1280, "height": 720},
         user_agent="Sol/0.1 (Browser Tool)",
     )
+    try:
+        _page.route("**/*", _browser_route_guard)
+    except Exception as e:
+        log.debug(f"Failed to install browser route guard: {e}")
     log.info("Browser launched (headless Chromium)")
     return True
 
 
 _ALLOWED_BROWSER_SCHEMES = {"http", "https"}
+
+
+def _browser_route_guard(route, request):
+    """Abort navigation requests that violate the shared SSRF policy."""
+    if request.is_navigation_request():
+        error = validate_url(request.url)
+        if error:
+            log.warning(f"Blocked browser navigation to {request.url}: {error}")
+            route.abort()
+            return
+    route.continue_()
 
 
 def browser_navigate(url: str) -> str:
@@ -66,11 +83,23 @@ def browser_navigate(url: str) -> str:
     except Exception:
         return f"Error: Invalid URL: {url}"
 
+    url_error = validate_url(url)
+    if url_error:
+        return f"Error: {url_error}"
+
     try:
         response = _page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        final_url = getattr(_page, "url", url)
+        final_url_error = validate_url(final_url)
+        if final_url_error:
+            try:
+                _page.goto("about:blank", wait_until="commit", timeout=5000)
+            except Exception:
+                pass
+            return f"Error: {final_url_error}"
         status = response.status if response else "unknown"
         title = _page.title()
-        return f"Navigated to {url}\n  Title: {title}\n  Status: {status}"
+        return f"Navigated to {final_url}\n  Title: {title}\n  Status: {status}"
     except Exception as e:
         log.debug(f"Navigation failed: {url}: {e}")
         return f"Failed to navigate to {url}. Check the URL and try again."

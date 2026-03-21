@@ -22,10 +22,11 @@ import secrets
 
 from flask import Flask, request, jsonify
 
-from .config import Config
+from .config import Config, RUNTIME_PROFILE_NAMES
 from .agent.core import Agent
 from .agent.personality import DEFAULT
 from .tools.registry import ToolRegistry
+from .tools.security import set_workspace_root
 
 log = logging.getLogger("solstice.server")
 
@@ -68,6 +69,17 @@ def _get_config() -> Config:
     return _config
 
 
+def _server_tool_flags(config: Config) -> dict:
+    """Gateway/server tool exposure must be explicit and safe by default."""
+    return config.resolve_tool_flags(default_profile="gateway")
+
+
+def _configure_gateway_workspace(config: Config, cli_workspace_root: str | None = None):
+    """Gateway file access must fail closed when no workspace is configured."""
+    workspace_root = cli_workspace_root or os.environ.get("SOLSTICE_WORKSPACE_ROOT") or config.workspace_root
+    set_workspace_root(workspace_root or None, required=True)
+
+
 def _get_pool():
     """Get AgentPool (multi-agent mode) or None."""
     global _pool
@@ -79,7 +91,7 @@ def _get_pool():
         return None
 
     from .agent.skills import init_skills
-    if config.enable_skills:
+    if _server_tool_flags(config)["enable_skills"]:
         init_skills()
 
     from .agent.router import AgentPool
@@ -87,7 +99,7 @@ def _get_pool():
     _pool = AgentPool(agent_configs, global_config=config)
 
     # Scheduler
-    if config.enable_cron:
+    if _server_tool_flags(config)["enable_cron"]:
         from .agent.scheduler import init_scheduler
 
         def _factory():
@@ -95,8 +107,9 @@ def _get_pool():
             a = Agent(provider=p, personality=DEFAULT,
                       temperature=config.temperature)
             r = ToolRegistry()
-            r.load_builtins(enable_terminal=config.enable_terminal,
-                            enable_web=config.enable_web, enable_cron=False)
+            flags = _server_tool_flags(config)
+            flags["enable_cron"] = False
+            r.load_builtins(**flags)
             r.apply(a)
             return a
 
@@ -136,7 +149,7 @@ def _get_agent() -> Agent:
 
         # Skills
         skill_loader = None
-        if config.enable_skills:
+        if _server_tool_flags(config)["enable_skills"]:
             from .agent.skills import init_skills, _get_loader
             init_skills()
             skill_loader = _get_loader()
@@ -152,16 +165,11 @@ def _get_agent() -> Agent:
         )
 
         registry = ToolRegistry()
-        registry.load_builtins(
-            enable_terminal=config.enable_terminal,
-            enable_web=config.enable_web,
-            enable_skills=config.enable_skills,
-            enable_cron=config.enable_cron,
-        )
+        registry.load_builtins(**_server_tool_flags(config))
         registry.apply(_agent)
 
         # Scheduler
-        if config.enable_cron:
+        if _server_tool_flags(config)["enable_cron"]:
             from .agent.scheduler import init_scheduler
 
             def _factory():
@@ -169,8 +177,9 @@ def _get_agent() -> Agent:
                 a = Agent(provider=p, personality=DEFAULT,
                           temperature=config.temperature, skill_loader=skill_loader)
                 r = ToolRegistry()
-                r.load_builtins(enable_terminal=config.enable_terminal,
-                                enable_web=config.enable_web, enable_cron=False)
+                flags = _server_tool_flags(config)
+                flags["enable_cron"] = False
+                r.load_builtins(**flags)
                 r.apply(a)
                 return a
 
@@ -234,12 +243,17 @@ def health():
 
 
 def main():
-    global _auth_token
+    global _auth_token, _config
 
     parser = argparse.ArgumentParser(prog="solstice-gateway", description="Solstice Agent Gateway Server")
     parser.add_argument("--port", type=int, default=5050)
     parser.add_argument("--host", default="127.0.0.1",
                         help="Bind address (default: 127.0.0.1 — localhost only)")
+    parser.add_argument("--config", "-c", help="Path to config file")
+    parser.add_argument("--profile", choices=RUNTIME_PROFILE_NAMES,
+                        help="Runtime profile for gateway/server tool defaults")
+    parser.add_argument("--workspace-root",
+                        help="Workspace root for gateway file tools. If omitted, file access fails closed.")
     parser.add_argument("--auth-token", default=None,
                         help="Bearer token for API authentication (or set SOL_GATEWAY_TOKEN env var)")
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -247,6 +261,9 @@ def main():
 
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level, format="%(name)s: %(message)s")
+    _config = Config.load(args.config)
+    _config.runtime_profile = args.profile or _config.runtime_profile or "gateway"
+    _configure_gateway_workspace(_config, cli_workspace_root=args.workspace_root)
 
     # Auth token from flag, env var, or auto-generated
     _auth_token = args.auth_token or os.environ.get("SOL_GATEWAY_TOKEN", "")

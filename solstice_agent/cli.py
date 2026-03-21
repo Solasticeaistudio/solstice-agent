@@ -17,7 +17,13 @@ import time
 import argparse
 import logging
 
-from .config import Config, default_config_path, find_config_path, provider_env_snapshot
+from .config import (
+    Config,
+    RUNTIME_PROFILE_NAMES,
+    default_config_path,
+    find_config_path,
+    provider_env_snapshot,
+)
 from .agent.core import Agent
 from .agent.personalities import list_personalities, resolve_personality
 from .tools.registry import ToolRegistry
@@ -83,6 +89,8 @@ def main():
     parser.add_argument("--model", "-m", help="Model name")
     parser.add_argument("--api-key", "-k", help="API key")
     parser.add_argument("--config", "-c", help="Path to config file")
+    parser.add_argument("--profile", choices=RUNTIME_PROFILE_NAMES,
+                        help="Runtime profile for CLI tool defaults")
     parser.add_argument("--personality", choices=list_personalities(), default="default")
     parser.add_argument("--no-tools", action="store_true", help="Disable all tools")
     parser.add_argument("--no-terminal", action="store_true", help="Disable terminal tool")
@@ -145,6 +153,14 @@ def main():
     parser.add_argument("--outreach-export-meetings", nargs="?", const="",
                         metavar="CAMPAIGN_ID",
                         help="Export meeting handoff records for demo or converted leads")
+    parser.add_argument("--outreach-push-crm", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Push CRM records to a webhook endpoint")
+    parser.add_argument("--outreach-push-meetings", nargs="?", const="",
+                        metavar="CAMPAIGN_ID",
+                        help="Push meeting handoff records to a webhook endpoint")
+    parser.add_argument("--crm-webhook", help="Webhook URL for CRM push operations")
+    parser.add_argument("--meeting-webhook", help="Webhook URL for meeting push operations")
     parser.add_argument("--outreach-autoreply-safe", nargs="?", const="",
                         metavar="CAMPAIGN_ID",
                         help="Use the configured LLM to draft/send safe pending replies for a campaign or all campaigns")
@@ -165,6 +181,9 @@ def main():
     if not args.setup and not args.message and _first_run_needs_onboarding(args.config):
         print(f"\n{CYAN}First launch detected. Sol needs a quick setup before it can think.{RESET}\n")
         _run_setup_and_reload(args.config)
+
+    # Load config before branches that rely on config-backed defaults.
+    config = Config.load(args.config)
 
     if args.outreach_load_seeds:
         from .outreach import load_seed_bundle
@@ -247,24 +266,44 @@ def main():
         print(outreach_export_meeting_queue(campaign_id=args.outreach_export_meetings))
         return
 
-    # Logging
-    level = logging.DEBUG if args.verbose else logging.WARNING
-    logging.basicConfig(level=level, format="%(name)s: %(message)s")
+    if args.outreach_push_crm is not None:
+        from .outreach.sync_queue import outreach_push_crm
 
-    # Set workspace root for path sandboxing (defaults to CWD)
-    from .tools.security import set_workspace_root
-    set_workspace_root(os.getcwd())
+        print(
+            outreach_push_crm(
+                campaign_id=args.outreach_push_crm,
+                webhook_url=args.crm_webhook or config.outreach_crm_webhook,
+            )
+        )
+        return
 
-    # Load config
-    config = Config.load(args.config)
+    if args.outreach_push_meetings is not None:
+        from .outreach.sync_queue import outreach_push_meeting_queue
+
+        print(
+            outreach_push_meeting_queue(
+                campaign_id=args.outreach_push_meetings,
+                webhook_url=args.meeting_webhook or config.outreach_meeting_webhook,
+            )
+        )
+        return
 
     # CLI args override config
+    config.runtime_profile = args.profile or config.runtime_profile or "developer"
     if args.provider:
         config.provider = args.provider
     if args.model:
         config.model = args.model
     if args.api_key:
         config.api_key = args.api_key
+
+    # Logging
+    level = logging.DEBUG if args.verbose else logging.WARNING
+    logging.basicConfig(level=level, format="%(name)s: %(message)s")
+
+    # Set workspace root for path sandboxing (defaults to configured root or CWD)
+    from .tools.security import set_workspace_root
+    set_workspace_root(config.workspace_root or os.getcwd())
 
     _print_provider_warnings(config)
 
@@ -332,7 +371,11 @@ def main():
             for name, cfg in agent_configs.items():
                 provider_str = cfg.provider or config.provider
                 personality_str = cfg.personality_spec if isinstance(cfg.personality_spec, str) else "custom"
-                disabled = [k.replace("enable_", "") for k, v in cfg.resolved_tool_flags().items() if not v]
+                disabled = [
+                    k.replace("enable_", "")
+                    for k, v in cfg.resolved_tool_flags(base_flags=config.resolve_tool_flags("developer")).items()
+                    if not v
+                ]
                 disabled_str = f" (disabled: {', '.join(disabled)})" if disabled else ""
                 print(f"  {GREEN}{name}{RESET}: {provider_str} / {personality_str}{disabled_str}")
             routing = config.get_routing_config()
@@ -389,20 +432,24 @@ def main():
         # Register tools
         if not args.no_tools:
             registry = ToolRegistry()
-            registry.load_builtins(
-                enable_terminal=not args.no_terminal,
-                enable_web=not args.no_web,
-                enable_browser=not args.no_browser,
-                enable_voice=not args.no_voice,
-                enable_memory=not args.no_memory,
-                enable_skills=not args.no_skills,
-                enable_cron=not args.no_cron,
-                enable_registry=not args.no_registry,
-                enable_screen=not args.no_screen,
-                enable_docker=not args.no_docker,
-                enable_presence=not args.no_presence,
-                enable_recording=not args.no_recording,
+            cli_flags = config.resolve_tool_flags(
+                "developer",
+                overrides={
+                    "enable_terminal": False if args.no_terminal else None,
+                    "enable_web": False if args.no_web else None,
+                    "enable_browser": False if args.no_browser else None,
+                    "enable_voice": False if args.no_voice else None,
+                    "enable_memory": False if args.no_memory else None,
+                    "enable_skills": False if args.no_skills else None,
+                    "enable_cron": False if args.no_cron else None,
+                    "enable_registry": False if args.no_registry else None,
+                    "enable_screen": False if args.no_screen else None,
+                    "enable_docker": False if args.no_docker else None,
+                    "enable_presence": False if args.no_presence else None,
+                    "enable_recording": False if args.no_recording else None,
+                },
             )
+            registry.load_builtins(**cli_flags)
             registry.apply(agent)
 
     # Scheduler
@@ -414,12 +461,24 @@ def main():
             a = Agent(provider=p, personality=personality,
                       temperature=config.temperature, skill_loader=skill_loader)
             r = ToolRegistry()
-            r.load_builtins(
-                enable_terminal=not args.no_terminal,
-                enable_web=not args.no_web,
-                enable_cron=False,  # Prevent recursive scheduling
-                enable_registry=not args.no_registry,
+            cli_flags = config.resolve_tool_flags(
+                "developer",
+                overrides={
+                    "enable_terminal": False if args.no_terminal else None,
+                    "enable_web": False if args.no_web else None,
+                    "enable_browser": False if args.no_browser else None,
+                    "enable_voice": False if args.no_voice else None,
+                    "enable_memory": False if args.no_memory else None,
+                    "enable_skills": False if args.no_skills else None,
+                    "enable_cron": False,
+                    "enable_registry": False if args.no_registry else None,
+                    "enable_screen": False if args.no_screen else None,
+                    "enable_docker": False if args.no_docker else None,
+                    "enable_presence": False if args.no_presence else None,
+                    "enable_recording": False if args.no_recording else None,
+                },
             )
+            r.load_builtins(**cli_flags)
             r.apply(a)
             return a
 
@@ -443,10 +502,10 @@ def main():
         from .agent.memory import Memory
         memory = Memory()
         if args.continue_session:
-            prev = memory.load_conversation()
+            prev = memory.resume_conversation()
             if prev:
                 agent.history = prev
-                print(f"{DIM}Resumed previous conversation ({len(prev)} messages){RESET}")
+                print(f"{DIM}Resumed conversation {memory.session_id} ({len(prev)} messages){RESET}")
 
     # One-shot mode
     if args.message:

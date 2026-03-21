@@ -31,16 +31,6 @@ if TYPE_CHECKING:
 log = logging.getLogger("solstice.router")
 
 # Default tool flags — all enabled
-_DEFAULT_TOOL_FLAGS = {
-    "enable_terminal": True,
-    "enable_web": True,
-    "enable_blackbox": True,
-    "enable_browser": True,
-    "enable_voice": True,
-    "enable_memory": True,
-    "enable_skills": True,
-    "enable_cron": True,
-}
 
 
 @dataclass
@@ -52,11 +42,19 @@ class AgentConfig:
     api_key: str = ""
     temperature: float = 0.0      # 0.0 = inherit global
     personality_spec: Any = "default"  # str name or dict for inline
+    runtime_profile: str = ""
     tool_flags: Dict[str, bool] = field(default_factory=dict)
 
-    def resolved_tool_flags(self) -> Dict[str, bool]:
-        """Return tool flags with defaults filled in."""
-        flags = dict(_DEFAULT_TOOL_FLAGS)
+    def resolved_tool_flags(self, base_flags: Optional[Dict[str, bool]] = None) -> Dict[str, bool]:
+        """Return tool flags resolved from runtime profile defaults plus per-agent overrides."""
+        from ..config import Config
+
+        if self.runtime_profile:
+            flags = Config.profile_tool_flags(self.runtime_profile)
+        elif base_flags is not None:
+            flags = dict(base_flags)
+        else:
+            flags = Config.profile_tool_flags("developer")
         flags.update(self.tool_flags)
         return flags
 
@@ -73,6 +71,7 @@ class AgentConfig:
             api_key=data.get("api_key", ""),
             temperature=float(data.get("temperature", 0.0)),
             personality_spec=personality,
+            runtime_profile=data.get("profile", data.get("runtime_profile", "")),
             tool_flags=tools,
         )
 
@@ -164,7 +163,8 @@ class AgentPool:
 
         # Tools — per-agent flags
         registry = ToolRegistry()
-        registry.load_builtins(**cfg.resolved_tool_flags())
+        base_flags = self._global.resolve_tool_flags("developer") if self._global else None
+        registry.load_builtins(**cfg.resolved_tool_flags(base_flags=base_flags))
         registry.apply(agent)
 
         return agent
