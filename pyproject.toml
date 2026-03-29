@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solstice-agent"
-version = "0.2.7"
+version = "0.2.9"
 description = "Local-first AI agent with tools, memory, messaging gateway support, and optional provider extras."
 readme = "README.md"
 license = {text = "MIT"}
@@ -29,6 +29,7 @@ classifiers = [
 
 dependencies = [
     "httpx>=0.25.0",
+    "requests>=2.28",
     "pyyaml>=6.0",
     "duckduckgo-search>=6.0",
 ]

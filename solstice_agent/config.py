@@ -35,6 +35,10 @@ TOOL_FLAG_NAMES = (
     "enable_presence",
     "enable_recording",
     "enable_outreach",
+    "enable_ssh",
+    "enable_singularity",
+    "enable_modal",
+    "enable_synthesis",
 )
 
 RUNTIME_PROFILE_DEFAULTS: Dict[str, Dict[str, bool]] = {
@@ -54,6 +58,10 @@ RUNTIME_PROFILE_DEFAULTS: Dict[str, Dict[str, bool]] = {
         "enable_presence": False,
         "enable_recording": False,
         "enable_outreach": False,
+        "enable_ssh": False,
+        "enable_singularity": False,
+        "enable_modal": False,
+        "enable_synthesis": True,
     },
     "developer": {
         "enable_terminal": True,
@@ -71,6 +79,10 @@ RUNTIME_PROFILE_DEFAULTS: Dict[str, Dict[str, bool]] = {
         "enable_presence": False,
         "enable_recording": False,
         "enable_outreach": False,
+        "enable_ssh": True,
+        "enable_singularity": True,
+        "enable_modal": True,
+        "enable_synthesis": True,
     },
     "gateway": {
         "enable_terminal": False,
@@ -88,6 +100,10 @@ RUNTIME_PROFILE_DEFAULTS: Dict[str, Dict[str, bool]] = {
         "enable_presence": False,
         "enable_recording": False,
         "enable_outreach": False,
+        "enable_ssh": False,
+        "enable_singularity": False,
+        "enable_modal": False,
+        "enable_synthesis": False,
     },
     "power_user": {
         "enable_terminal": True,
@@ -105,6 +121,10 @@ RUNTIME_PROFILE_DEFAULTS: Dict[str, Dict[str, bool]] = {
         "enable_presence": True,
         "enable_recording": True,
         "enable_outreach": True,
+        "enable_ssh": True,
+        "enable_singularity": True,
+        "enable_modal": True,
+        "enable_synthesis": True,
     },
 }
 
@@ -141,6 +161,10 @@ class Config:
     enable_presence: Optional[bool] = None
     enable_recording: Optional[bool] = None
     enable_outreach: Optional[bool] = None
+    enable_ssh: Optional[bool] = None
+    enable_singularity: Optional[bool] = None
+    enable_modal: Optional[bool] = None
+    enable_synthesis: Optional[bool] = None
 
     # Gateway
     gateway_enabled: bool = False

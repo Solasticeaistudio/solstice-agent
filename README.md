@@ -229,6 +229,7 @@ You can also just ask:
 ## Docs
 
 - Security: `docs/SECURITY.md`
+- Connectors: `docs/CONNECTORS.md`
 - Camunda quickstart: `docs/WINDOWS_CAMUNDA_QUICKSTART.md`
 - Camunda demo script: `docs/CAMUNDA_DEMO_SCRIPT.md`
 

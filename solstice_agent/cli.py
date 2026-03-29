@@ -17,14 +17,6 @@ import time
 import argparse
 import logging
 
-# Ensure stdout/stderr use UTF-8 on Windows so Unicode banner characters render correctly
-if sys.platform == "win32":
-    import io
-    if hasattr(sys.stdout, "buffer"):
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    if hasattr(sys.stderr, "buffer"):
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-
 from .config import (
     Config,
     RUNTIME_PROFILE_NAMES,
@@ -87,6 +79,25 @@ def _run_setup_and_reload(config_path: str | None) -> Config:
 
 
 def main():
+    # Ensure UTF-8 output on Windows so Unicode banner characters render correctly.
+    # Only reconfigure if stdout has a real underlying buffer and non-UTF-8 encoding
+    # (skip when running under pytest capsys or other test capture wrappers).
+    if sys.platform == "win32":
+        import io
+        try:
+            enc = getattr(sys.stdout, "encoding", "utf-8") or "utf-8"
+            if enc.lower().replace("-", "") != "utf8":
+                buf = getattr(sys.stdout, "buffer", None)
+                if buf is not None:
+                    sys.stdout = io.TextIOWrapper(buf, encoding="utf-8", errors="replace")
+            enc = getattr(sys.stderr, "encoding", "utf-8") or "utf-8"
+            if enc.lower().replace("-", "") != "utf8":
+                buf = getattr(sys.stderr, "buffer", None)
+                if buf is not None:
+                    sys.stderr = io.TextIOWrapper(buf, encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     prog = "sol" if "sol" in (sys.argv[0] or "").lower() else "solstice-agent"
     parser = argparse.ArgumentParser(
         prog=prog,
