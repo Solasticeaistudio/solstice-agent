@@ -17,6 +17,14 @@ import time
 import argparse
 import logging
 
+# Ensure stdout/stderr use UTF-8 on Windows so Unicode banner characters render correctly
+if sys.platform == "win32":
+    import io
+    if hasattr(sys.stdout, "buffer"):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "buffer"):
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 from .config import (
     Config,
     RUNTIME_PROFILE_NAMES,
