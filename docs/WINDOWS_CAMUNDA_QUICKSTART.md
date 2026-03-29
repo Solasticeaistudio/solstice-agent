@@ -32,7 +32,7 @@ sol
 pipx inject solstice-agent artemis-camunda
 ```
 
-This installs the connector into the same isolated environment as `sol`, which is required for connector auto-discovery.
+This installs the connector into the same isolated environment as `sol`, which is required for connector auto-discovery. **Do not use `pip install artemis-camunda`** — Sol won't see it because pipx isolates its environment from the system Python.
 
 ## 3) Set Camunda Environment Variables
 

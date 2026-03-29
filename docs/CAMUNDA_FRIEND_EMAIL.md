@@ -12,6 +12,8 @@ pipx install solstice-agent
 pipx inject solstice-agent artemis-camunda
 ```
 
+Note: use `pipx inject`, not `pip install` — Sol runs in an isolated pipx environment so a regular `pip install artemis-camunda` won't be visible to it.
+
 2) Set your Camunda creds
 ```powershell
 $env:CAMUNDA_BASE_URL="https://your-camunda.example.com"
