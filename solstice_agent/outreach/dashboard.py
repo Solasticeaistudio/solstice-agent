@@ -42,6 +42,14 @@ def outreach_dashboard() -> str:
         lines.append(f"  Meetings: {campaign.meetings_booked}")
         lines.append(f"  Opt-outs: {campaign.opted_out}")
         lines.append(f"  Bounced: {campaign.bounced}")
+        tagged = len([lead for lead in leads if lead.tags])
+        deferred = len([lead for lead in leads if lead.deferred_until])
+        pricing = len([lead for lead in leads if "pricing_requested" in lead.tags])
+        demos = len([lead for lead in leads if "demo_requested" in lead.tags])
+        lines.append(f"  Tagged leads: {tagged}")
+        lines.append(f"  Deferred: {deferred}")
+        lines.append(f"  Pricing asks: {pricing}")
+        lines.append(f"  Demo requests: {demos}")
 
     metrics = store.get_today_metrics()
     lines.append("\nTODAY'S METRICS")
@@ -80,6 +88,9 @@ def outreach_lead_detail(lead_id: str) -> str:
         f"  Emails: {lead.emails_sent} sent, {lead.emails_received} received\n"
         f"  Follow-ups: {lead.follow_up_count}/{lead.max_follow_ups}\n"
         f"  Next follow-up: {lead.next_follow_up[:10] if lead.next_follow_up else 'none'}\n"
+        f"  Last intent: {lead.last_detected_intent or 'unknown'}\n"
+        f"  Tags: {', '.join(lead.tags) or 'none'}\n"
+        f"  Deferred until: {lead.deferred_until[:10] if lead.deferred_until else 'none'}\n"
         f"\nCONVERSATION:\n" + ("\n".join(conv_lines) if conv_lines else "  No messages yet.")
     )
 

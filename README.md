@@ -107,8 +107,9 @@ memory, voice, scheduling, browser control, and local-first guardrails.
 ## What It Can Do
 
 Sol ships with built-in tools across files, browser, terminal, web, API discovery,
-voice, screen capture, recording, Docker sandboxing, scheduling, memory, and
-cross-channel messaging.
+voice, screen capture, recording, Docker sandboxing, SSH remote execution,
+Singularity/Apptainer HPC containers, Modal serverless compute, scheduling,
+self-improving skills, memory, and cross-channel messaging.
 
 It also supports external connectors installed into the same Python environment.
 That interface stays public, while deep Artemis integrations can ship as separate
@@ -120,7 +121,11 @@ What that means in practice:
 - Run commands, background jobs, and inspect logs
 - Search the web and open pages in a real browser
 - Inspect unfamiliar APIs and map their endpoints
+- SSH into remote servers and run commands, transfer files, manage sessions
+- Run Singularity/Apptainer containers on HPC clusters where Docker isn't an option
+- Offload heavy compute to Modal — ephemeral GPU jobs or persistent scheduled apps
 - Remember facts and resume conversations across sessions
+- Synthesize reusable skill guides from completed tasks and improve them over time
 - Listen for a wake word and reply by voice
 - Schedule recurring work while you are away
 - Respond through messaging platforms using the same memory and personality

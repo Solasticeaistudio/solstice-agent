@@ -9,7 +9,12 @@ Supports:
 """
 
 from .personality import Personality, DEFAULT, CODER
-from ..outreach.personality import OUTREACH_INVESTOR, OUTREACH_CUSTOMER, OUTREACH_IRIS_INVESTOR
+from ..outreach.personality import (
+    OUTREACH_INVESTOR,
+    OUTREACH_CUSTOMER,
+    OUTREACH_IRIS_INVESTOR,
+    OUTREACH_WAR_ROOM,
+)
 
 # Built-in personality registry
 PERSONALITIES = {
@@ -18,6 +23,7 @@ PERSONALITIES = {
     "outreach_investor": OUTREACH_INVESTOR,
     "outreach_iris_investor": OUTREACH_IRIS_INVESTOR,
     "outreach_customer": OUTREACH_CUSTOMER,
+    "outreach_war_room": OUTREACH_WAR_ROOM,
 }
 
 

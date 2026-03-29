@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-03-29
+
+### Added
+- **SSH remote execution** — `ssh_connect`, `ssh_exec`, `ssh_disconnect`, `ssh_list`, `ssh_upload`, `ssh_download`; persistent sessions via paramiko, SFTP file transfer, thread-safe connection pool (max 10 sessions)
+- **Singularity / Apptainer sandbox** — HPC container execution (`singularity_run`, `singularity_run_async`, `singularity_status`, `singularity_list`, `singularity_pull`); works on clusters where Docker requires root; auto-detects apptainer vs singularity binary
+- **Modal serverless sandbox** — `modal_run` (ephemeral GPU/CPU jobs), `modal_deploy` (persistent apps with optional cron), `modal_list`, `modal_stop`; generates self-contained app scripts on the fly
+- **Self-improving skill system** — `SkillSynthesizer` class + `skill_save` / `skill_improve` tools; after complex tasks (≥4 tool calls), Sol automatically prompts the LLM to decide if a reusable skill guide should be saved or updated; skills stored in `~/.solstice-agent/skills/synthesized/` and hot-reloaded immediately
+- New `synthesizer=` parameter on `Agent` — pass a `SkillSynthesizer` to enable the learning loop; threshold is configurable
+- New `[ssh]` and `[modal]` package extras
+
+### Changed
+- `Agent.chat()` now counts tool invocations per task and passes the total to the synthesizer post-response
+- `ToolRegistry.load_builtins()` gains four new flags: `enable_ssh`, `enable_singularity`, `enable_modal`, `enable_synthesis` (all `True` by default)
+- Total built-in tools: **89** (up from 72)
+
 ## [0.2.4] - 2026-03-15
 
 ### Added

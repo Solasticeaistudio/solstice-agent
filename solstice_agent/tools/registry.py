@@ -49,6 +49,10 @@ class ToolRegistry:
         enable_presence: bool = True,
         enable_recording: bool = True,
         enable_outreach: bool = True,
+        enable_ssh: bool = True,
+        enable_singularity: bool = True,
+        enable_modal: bool = True,
+        enable_synthesis: bool = True,
     ):
         """Load all built-in tool sets."""
         from .file_ops import register_file_tools
@@ -114,6 +118,22 @@ class ToolRegistry:
         if enable_outreach:
             from ..outreach.tools import register_outreach_tools
             register_outreach_tools(self)
+
+        if enable_ssh:
+            from .ssh_sandbox import register_ssh_tools
+            register_ssh_tools(self)
+
+        if enable_singularity:
+            from .singularity_sandbox import register_singularity_tools
+            register_singularity_tools(self)
+
+        if enable_modal:
+            from .modal_sandbox import register_modal_tools
+            register_modal_tools(self)
+
+        if enable_synthesis:
+            from ..agent.skill_synthesizer import register_synthesis_tools
+            register_synthesis_tools(self)
 
         # Auto-discover installed Artemis connectors (pip install artemis-connectors)
         self._load_artemis_connectors()

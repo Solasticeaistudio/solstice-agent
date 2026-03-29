@@ -69,6 +69,11 @@ class Lead:
     follow_up_count: int = 0
     max_follow_ups: int = 3
     opted_out: bool = False
+    tags: List[str] = field(default_factory=list)
+    pipeline_notes: List[str] = field(default_factory=list)
+    last_detected_intent: str = ""
+    deferred_until: str = ""
+    last_pipeline_update: str = ""
 
     def __post_init__(self):
         if not self.id:
@@ -91,6 +96,10 @@ class Lead:
             "last_contacted": self.last_contacted, "last_reply": self.last_reply,
             "next_follow_up": self.next_follow_up, "follow_up_count": self.follow_up_count,
             "max_follow_ups": self.max_follow_ups, "opted_out": self.opted_out,
+            "tags": self.tags, "pipeline_notes": self.pipeline_notes,
+            "last_detected_intent": self.last_detected_intent,
+            "deferred_until": self.deferred_until,
+            "last_pipeline_update": self.last_pipeline_update,
         }
 
     @classmethod

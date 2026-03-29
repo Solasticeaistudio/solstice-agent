@@ -1,0 +1,60 @@
+{
+  "id": "camp-warroom-wave1",
+  "name": "War Room Wave 1",
+  "campaign_type": "customer",
+  "status": "draft",
+  "persona_name": "outreach_war_room",
+  "target_criteria": "Strategy, portfolio, risk, and decision owners facing high-uncertainty decisions",
+  "target_industries": [
+    "Private Equity",
+    "Insurance",
+    "Reinsurance",
+    "Risk Analytics",
+    "Defense",
+    "National Security"
+  ],
+  "target_titles": [
+    "Operating Partner",
+    "Portfolio Ops",
+    "Value Creation",
+    "Corporate Development",
+    "Strategy",
+    "Innovation",
+    "Risk Strategy"
+  ],
+  "search_queries": [
+    "site:kingswood-capital.com portfolio operations operating partner",
+    "site:verisk.com corporate strategy product risk analytics",
+    "site:swissre.com risk strategy corporate development innovation",
+    "site:palantir.com strategy mission engineering innovation"
+  ],
+  "pitch_deck_path": "",
+  "pitch_deck_content": "",
+  "knowledge_dir": "C:\\dev\\solstice-agent\\docs\\war_room_outreach",
+  "knowledge_content": "",
+  "attachments_dir": "",
+  "approved_attachments": [],
+  "draft_only": true,
+  "mailbox": "",
+  "value_proposition": "Paid Decision Sprint that stress-tests a high-stakes decision and returns a board-ready brief with vulnerabilities, counterfactuals, and evidence-linked rationale in hours.",
+  "email_templates": {
+    "initial": "Lead with the target's decision pressure. Position War Room as a paid Decision Sprint. Keep it concise, concrete, and easy to forward.",
+    "follow_up": "Add one concrete use case or clarify the internal fit. Do not just say 'checking in'.",
+    "reply": "Answer directly, preserve trust, and escalate pricing, legal, procurement, or sensitive strategy questions for human review."
+  },
+  "follow_up_days": [
+    3,
+    7,
+    14
+  ],
+  "send_window_start": 9,
+  "send_window_end": 17,
+  "daily_send_limit": 10,
+  "leads_discovered": 0,
+  "leads_qualified": 0,
+  "emails_sent": 0,
+  "replies_received": 0,
+  "meetings_booked": 0,
+  "opted_out": 0,
+  "bounced": 0
+}

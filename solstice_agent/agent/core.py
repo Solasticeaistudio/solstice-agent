@@ -58,6 +58,7 @@ class Agent:
         max_tokens: int = 4096,
         skill_loader=None,
         compactor=None,
+        synthesizer=None,
     ):
         self.provider = provider
         self.personality = personality or DEFAULT
@@ -65,6 +66,7 @@ class Agent:
         self.max_tokens = max_tokens
         self.skill_loader = skill_loader
         self.compactor = compactor
+        self.synthesizer = synthesizer
 
         # Conversation history
         self.history: List[Dict[str, Any]] = []
@@ -143,6 +145,7 @@ class Agent:
         messages = self._build_messages(user_message=message if isinstance(message, str) else "")
 
         # Tool-calling loop
+        tool_call_count = 0
         for iteration in range(self.MAX_TOOL_ITERATIONS):
             tools = self._tool_schemas if self._tools and self.provider.supports_tools() else None
 
@@ -158,6 +161,7 @@ class Agent:
                 final_text = response.text.strip()
                 self.history.append({"role": "assistant", "content": final_text})
                 self._compact_or_trim()
+                self._maybe_synthesize(tool_call_count)
                 return final_text
 
             # Execute tool calls
@@ -169,6 +173,7 @@ class Agent:
 
             # Execute each tool and add results
             for tool_call in response.tool_calls:
+                tool_call_count += 1
                 result = self._execute_tool(tool_call)
                 messages.append(self._format_tool_result(tool_call, result))
 
@@ -176,6 +181,7 @@ class Agent:
         fallback = response.text if response.text else "I got stuck in a tool loop. Try rephrasing?"
         self.history.append({"role": "assistant", "content": fallback})
         self._compact_or_trim()
+        self._maybe_synthesize(tool_call_count)
         return fallback
 
     def chat_stream(self, message: str, images: list = None) -> Generator[StreamEvent, None, None]:
@@ -465,6 +471,19 @@ class Agent:
             self.history = self.compactor.compact(self.history)
         else:
             self._trim_history()
+
+    def _maybe_synthesize(self, tool_call_count: int):
+        """Fire-and-forget: ask the synthesizer to consider saving a skill."""
+        if not self.synthesizer:
+            return
+        try:
+            result = self.synthesizer.maybe_synthesize(self.history, tool_call_count)
+            if result and result.saved:
+                log.info(
+                    f"Skill {result.action}: '{result.skill_name}' → {result.path}"
+                )
+        except Exception as exc:
+            log.debug(f"Synthesis error (non-fatal): {exc}")
 
     def clear_history(self):
         """Reset conversation history."""

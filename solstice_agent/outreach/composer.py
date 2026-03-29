@@ -7,12 +7,21 @@ Handles draft creation or sending plus conversation recording.
 
 import logging
 import os
+import html
 from datetime import datetime, timedelta, timezone
 
 from .store import get_store
 from .models import LeadStage, EmailMessage, Conversation
 
 log = logging.getLogger("solstice.outreach.composer")
+
+DEFAULT_SIGNATURE_NAME = "Justin Meister"
+DEFAULT_SIGNATURE_TITLE = "Founder | Solstice Studio"
+DEFAULT_SIGNATURE_GROUP = "Solstice War Room"
+DEFAULT_SIGNATURE_TAGLINE = "Strategic Intelligence for high-stakes decisions"
+DEFAULT_SIGNATURE_WEBSITE = "https://solsticestudio.ai/strategic-intelligence"
+DEFAULT_SIGNATURE_EMAIL = "justin@solsticestudio.ai"
+DEFAULT_SIGNATURE_LOGO_URL = "https://solsticestudio.ai/static/ssi-logo.png"
 
 
 def outreach_compose(lead_id: str, email_type: str = "initial", custom_angle: str = "") -> str:
@@ -43,7 +52,11 @@ def outreach_compose(lead_id: str, email_type: str = "initial", custom_angle: st
     template = campaign.email_templates.get(email_type, "")
 
     conv_section = f"CONVERSATION HISTORY:\n{conv_history}" if conv_history else "No prior conversation."
-    angle_section = f"CUSTOM ANGLE: {custom_angle}" if custom_angle else ""
+    effective_angle = custom_angle
+    if email_type == "follow_up" and not effective_angle:
+        effective_angle = _derive_follow_up_angle(lead)
+
+    angle_section = f"CUSTOM ANGLE: {effective_angle}" if effective_angle else ""
     knowledge_section = f"APPROVED KNOWLEDGE:\n{knowledge_excerpt}" if knowledge_excerpt else "No knowledge base loaded."
     template_section = f"TEMPLATE GUIDANCE:\n{template}" if template else ""
 
@@ -73,6 +86,9 @@ LEAD PROFILE:
   Research notes: {lead.research_notes}
   Lead type: {lead.lead_type.value}
   Score: {lead.score}/100
+  Last detected intent: {lead.last_detected_intent or "unknown"}
+  Tags: {", ".join(lead.tags) or "none"}
+  Deferred until: {lead.deferred_until[:10] if lead.deferred_until else "none"}
 
 CAMPAIGN: {campaign.name} ({campaign.campaign_type.value})
   Persona: {campaign.persona_name}
@@ -152,12 +168,20 @@ def outreach_send(lead_id: str, subject: str, body: str) -> str:
             subject = f"Re: {original_subject}"
 
     attachment_paths = store.resolve_attachment_paths(campaign.attachments_dir, campaign.approved_attachments)
+    provider = (email_config.get("provider") or "").lower()
     metadata = {
         "subject": subject,
         "mode": "draft" if campaign.draft_only else "send",
         "attachments": [str(p) for p in attachment_paths],
     }
-    result = channel.send_message(lead.email, body, metadata=metadata)
+    plain_body = _apply_signature(body)
+    body_to_send = plain_body
+    stored_body = plain_body
+    if provider in {"graph", "outlook"}:
+        metadata["content_type"] = "HTML"
+        body_to_send = _render_html_email(body)
+        stored_body = _apply_signature(body)
+    result = channel.send_message(lead.email, body_to_send, metadata=metadata)
 
     if not result.get("success"):
         error = result.get("error", "Unknown error")
@@ -169,7 +193,7 @@ def outreach_send(lead_id: str, subject: str, body: str) -> str:
         return f"Error contacting {lead.email}: {error}"
 
     mode = result.get("mode", metadata["mode"])
-    msg = EmailMessage(direction="outbound", subject=subject, body=body)
+    msg = EmailMessage(direction="outbound", subject=subject, body=stored_body)
 
     if not conversation:
         conversation = Conversation(lead_id=lead_id, campaign_id=lead.campaign_id)
@@ -195,7 +219,7 @@ def outreach_send(lead_id: str, subject: str, body: str) -> str:
     artifact = store.save_outbound_artifact(
         lead_id=lead_id,
         subject=subject,
-        body=body,
+        body=stored_body,
         mode=mode,
         attachments=[p.name for p in attachment_paths],
         metadata={
@@ -217,3 +241,187 @@ def outreach_send(lead_id: str, subject: str, body: str) -> str:
     if result.get("web_link"):
         lines.append(f"  Outlook draft: {result['web_link']}")
     return "\n".join(lines)
+
+
+def _signature_settings() -> dict:
+    return {
+        "name": os.getenv("SOLSTICE_OUTREACH_SIGNATURE_NAME", DEFAULT_SIGNATURE_NAME),
+        "title": os.getenv("SOLSTICE_OUTREACH_SIGNATURE_TITLE", DEFAULT_SIGNATURE_TITLE),
+        "group": os.getenv("SOLSTICE_OUTREACH_SIGNATURE_GROUP", DEFAULT_SIGNATURE_GROUP),
+        "tagline": os.getenv("SOLSTICE_OUTREACH_SIGNATURE_TAGLINE", DEFAULT_SIGNATURE_TAGLINE),
+        "website": os.getenv("SOLSTICE_OUTREACH_SIGNATURE_WEBSITE", DEFAULT_SIGNATURE_WEBSITE),
+        "email": os.getenv("SOLSTICE_OUTREACH_SIGNATURE_EMAIL", DEFAULT_SIGNATURE_EMAIL),
+        "logo_url": os.getenv("SOLSTICE_OUTREACH_SIGNATURE_LOGO_URL", DEFAULT_SIGNATURE_LOGO_URL),
+    }
+
+
+def _apply_signature(body: str) -> str:
+    text = (body or "").strip()
+    if not text:
+        return _render_plain_signature()
+    if _body_has_signature(text):
+        return text
+    return f"{text}\n\n{_render_plain_signature()}"
+
+
+def _body_has_signature(body: str) -> bool:
+    lowered = (body or "").lower()
+    markers = (
+        "solsticestudio.ai",
+        "justin@solsticestudio.ai",
+        "justin meister",
+        "solstice war room",
+    )
+    return any(marker in lowered for marker in markers)
+
+
+def _render_plain_signature() -> str:
+    settings = _signature_settings()
+    lines = [
+        "Best,",
+        settings["name"],
+        settings["title"],
+        "",
+        settings["group"],
+        settings["tagline"],
+        settings["website"],
+        settings["email"],
+    ]
+    return "\n".join(lines)
+
+
+def _render_html_email(body: str) -> str:
+    settings = _signature_settings()
+    safe_body = html.escape((body or "").strip())
+    body_html = "<br>".join(safe_body.splitlines()) if safe_body else ""
+    logo_html = (
+        f"<img src=\"{html.escape(settings['logo_url'])}\" alt=\"Solstice Strategic Intelligence\" "
+        f"style=\"width:68px;height:68px;object-fit:contain;display:block;border-radius:12px;\">"
+    ) if settings["logo_url"] else ""
+    website = html.escape(settings["website"])
+    email_address = html.escape(settings["email"])
+    signature_html = (
+        "<div style=\"margin-top:24px;font-size:15px;color:#111827;\">Best,</div>"
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
+        "style=\"margin-top:12px;border-collapse:collapse;\">"
+        "<tr>"
+        "<td style=\"vertical-align:top;padding-right:16px;\">"
+        f"{logo_html}"
+        "</td>"
+        "<td style=\"vertical-align:top;border-left:2px solid #d1d5db;padding-left:16px;\">"
+        f"<div style=\"font-size:16px;font-weight:700;color:#111827;\">{html.escape(settings['name'])}</div>"
+        f"<div style=\"font-size:13px;color:#4b5563;margin-top:2px;\">{html.escape(settings['title'])}</div>"
+        f"<div style=\"font-size:13px;font-weight:700;color:#111827;margin-top:12px;\">{html.escape(settings['group'])}</div>"
+        f"<div style=\"font-size:13px;color:#4b5563;margin-top:2px;\">{html.escape(settings['tagline'])}</div>"
+        f"<div style=\"font-size:13px;margin-top:10px;\"><a href=\"{website}\" style=\"color:#1d4ed8;text-decoration:none;\">Strategic Intelligence Engine</a></div>"
+        f"<div style=\"font-size:13px;margin-top:4px;\"><a href=\"mailto:{email_address}\" style=\"color:#1d4ed8;text-decoration:none;\">{email_address}</a></div>"
+        "</td>"
+        "</tr>"
+        "</table>"
+    )
+    return (
+        "<div style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#111827;\">"
+        f"<div>{body_html}</div>"
+        f"{signature_html}"
+        "</div>"
+    )
+
+
+def outreach_prepare_draft_batch(
+    campaign_id: str,
+    email_type: str = "initial",
+    limit: int = 10,
+    stage: str = "qualified",
+    custom_angle: str = "",
+) -> str:
+    """Prepare compose artifacts for a batch of leads so drafts can be generated systematically."""
+    store = get_store()
+    campaign = store.get_campaign(campaign_id)
+    if not campaign:
+        return f"Error: Campaign '{campaign_id}' not found."
+
+    try:
+        stage_filter = LeadStage(stage) if stage else None
+    except ValueError:
+        valid = ", ".join(s.value for s in LeadStage)
+        return f"Error: stage must be one of: {valid}"
+
+    leads = store.list_leads(campaign_id=campaign_id, stage=stage_filter) if stage_filter else store.list_leads(campaign_id=campaign_id)
+    eligible = []
+    for lead in leads:
+        if lead.opted_out:
+            continue
+        if email_type == "initial" and lead.emails_sent > 0:
+            continue
+        eligible.append(lead)
+
+    if not eligible:
+        return f"No eligible leads found for campaign '{campaign.name}' ({email_type}, stage={stage_filter.value if stage_filter else 'any'})."
+
+    artifacts = []
+    for lead in eligible[:max(limit, 0)]:
+        per_lead_angle = custom_angle
+        if email_type == "follow_up" and not per_lead_angle:
+            per_lead_angle = _derive_follow_up_angle(lead)
+
+        context = outreach_compose(lead.id, email_type=email_type, custom_angle=per_lead_angle)
+        artifact = store.save_compose_artifact(
+            lead_id=lead.id,
+            email_type=email_type,
+            context=context,
+            metadata={
+                "campaign_id": campaign_id,
+                "campaign_name": campaign.name,
+                "lead_email": lead.email,
+                "company": lead.company,
+                "stage": lead.stage.value,
+                "custom_angle": per_lead_angle,
+            },
+        )
+        artifacts.append((lead, artifact))
+
+    lines = [
+        f"Prepared {len(artifacts)} compose artifacts for '{campaign.name}'",
+        f"  Email type: {email_type}",
+        f"  Stage filter: {stage_filter.value if stage_filter else 'any'}",
+    ]
+    for lead, artifact in artifacts:
+        lines.append(
+            f"  {lead.first_name} {lead.last_name} ({lead.company})\n"
+            f"    Lead ID: {lead.id}\n"
+            f"    Artifact: {artifact}"
+        )
+    return "\n".join(lines)
+
+
+def _derive_follow_up_angle(lead) -> str:
+    if lead.deferred_until:
+        return (
+            "This lead previously deferred timing. Keep the follow-up low-pressure, "
+            "acknowledge timing, and re-open the conversation only if it remains relevant."
+        )
+    if "needs_info" in lead.tags or lead.last_detected_intent == "interested_needs_more_info":
+        return (
+            "This lead asked for more information. Follow up with one concrete example or approved sample output angle, "
+            "not a generic nudge."
+        )
+    if "routed" in lead.tags or lead.last_detected_intent == "routing_referral":
+        return (
+            "This lead previously routed the conversation. Follow up in a way that is easy to forward internally "
+            "and references the routing context."
+        )
+    if "objection" in lead.tags or lead.last_detected_intent == "challenge_objection":
+        return (
+            "This lead raised skepticism or an objection. Follow up by clarifying the differentiation calmly and directly "
+            "without sounding defensive."
+        )
+    if "pricing_requested" in lead.tags:
+        return (
+            "This lead previously asked about pricing. Do not improvise new pricing; follow up only if there is approved "
+            "commercial context or to move toward a scoped conversation."
+        )
+    if "demo_requested" in lead.tags:
+        return (
+            "This lead previously showed demo interest. Follow up with a clear next step toward scheduling or confirming the demo."
+        )
+    return ""

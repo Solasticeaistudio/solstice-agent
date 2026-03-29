@@ -35,6 +35,8 @@ Sol combines:
 - a tool-calling agent loop
 - persistent cross-session memory
 - browser, terminal, file, voice, and scheduling tools
+- remote execution: SSH into any server, Singularity/Apptainer for HPC clusters, Modal for serverless GPU workloads
+- self-improving skills: synthesizes reusable technique guides from completed tasks, improves them over time
 - multi-agent routing
 - messaging gateways
 - local-first safety guardrails

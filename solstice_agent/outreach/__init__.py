@@ -23,6 +23,8 @@ __all__ = [
     "outreach_next_best_actions",
     "outreach_export_crm",
     "outreach_export_meeting_queue",
+    "outreach_push_crm",
+    "outreach_push_meeting_queue",
     "Lead",
     "Campaign",
     "LeadType",
@@ -49,7 +51,7 @@ def __getattr__(name):
     if name in {"outreach_analytics", "outreach_next_best_actions"}:
         module = import_module(".analytics", __name__)
         return getattr(module, name)
-    if name in {"outreach_export_crm", "outreach_export_meeting_queue"}:
+    if name in {"outreach_export_crm", "outreach_export_meeting_queue", "outreach_push_crm", "outreach_push_meeting_queue"}:
         module = import_module(".sync_queue", __name__)
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -44,6 +44,8 @@ voice = ["elevenlabs>=1.0", "openai>=1.0", "sounddevice>=0.4", "numpy>=1.24"]
 browser = ["playwright>=1.40"]
 screen = ["mss>=9.0", "Pillow>=10.0"]
 docker = ["docker>=7.0"]
+ssh = ["paramiko>=3.0"]
+modal = ["modal>=0.60"]
 recording = ["mss>=9.0", "opencv-python-headless>=4.8", "Pillow>=10.0"]
 tray = ["pystray>=0.19", "Pillow>=10.0", "plyer>=2.1", "pyperclip>=1.8"]
 dev = ["pytest>=8.0", "ruff>=0.5"]
@@ -62,6 +64,8 @@ all = [
     "mss>=9.0",
     "Pillow>=10.0",
     "docker>=7.0",
+    "paramiko>=3.0",
+    "modal>=0.60",
     "opencv-python-headless>=4.8",
     "pystray>=0.19",
     "plyer>=2.1",

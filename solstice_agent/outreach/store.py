@@ -35,8 +35,9 @@ class OutreachStore:
         self.metrics_dir = self.root / "metrics"
         self.pitch_decks_dir = self.root / "pitch_decks"
         self.drafts_dir = self.root / "drafts"
+        self.exports_dir = self.root / "exports"
 
-        for d in [self.root, self.conversations_dir, self.metrics_dir, self.pitch_decks_dir, self.drafts_dir]:
+        for d in [self.root, self.conversations_dir, self.metrics_dir, self.pitch_decks_dir, self.drafts_dir, self.exports_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
         self._campaigns: Dict[str, Campaign] = self._load_campaigns()
@@ -239,6 +240,39 @@ class OutreachStore:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return path
+
+    def save_compose_artifact(
+        self,
+        lead_id: str,
+        email_type: str,
+        context: str,
+        metadata: Optional[dict] = None,
+    ) -> Path:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        path = self.drafts_dir / f"{lead_id}-{email_type}-compose-{stamp}.json"
+        payload = {
+            "lead_id": lead_id,
+            "email_type": email_type,
+            "context": context,
+            "metadata": metadata or {},
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return path
+
+    def save_export_artifact(
+        self,
+        name: str,
+        payload,
+        extension: str = "json",
+    ) -> Path:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        path = self.exports_dir / f"{name}-{stamp}.{extension}"
+        if extension == "json":
+            path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        else:
+            path.write_text(str(payload), encoding="utf-8")
         return path
 
     # --- Internal ---

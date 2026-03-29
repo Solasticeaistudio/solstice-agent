@@ -80,12 +80,15 @@ class OutreachOrchestrator:
             (
                 self.INBOX_CHECK_SCHEDULE,
                 "Check the outreach inbox for new replies using outreach_check_inbox. "
-                "If there are replies that need responses, use outreach_compose with email_type='reply' "
-                "for each lead, then outreach_send to respond.",
+                "Then review pending replies with outreach_reply_review. "
+                "Use outreach_prepare_reply_batch with auto_safe_only=true to prepare safe replies. "
+                "For safe replies only, use outreach_compose with email_type='reply' for each lead, then outreach_send. "
+                "If the review or prepared batch shows demo requests, pricing, procurement, legal, or ambiguous cases, do not answer blindly; surface them for human review.",
             ),
             (
                 self.FOLLOW_UP_SCHEDULE,
                 "Check for outreach leads due for follow-up using outreach_follow_ups_due. "
+                "Use state-aware memory from outreach_pipeline_memory, lead tags, last intent, and deferred dates to shape the angle. "
                 "For each lead due, use outreach_compose with email_type='follow_up', "
                 "then outreach_send to deliver the follow-up.",
             ),

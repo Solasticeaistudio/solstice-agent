@@ -99,6 +99,14 @@ Real tools. Real work.
   Keep facts and conversation context across sessions.
 - Scheduling
   Run recurring work while you are away.
+- Remote Execution
+  SSH into any server. Run commands, transfer files, and manage sessions without leaving the agent.
+- HPC Containers
+  Run Singularity and Apptainer workloads on HPC clusters where Docker is unavailable or requires root.
+- Serverless
+  Offload heavy compute to Modal. GPU jobs, persistent apps, scheduled runs — no infrastructure to manage.
+- Self-Improving Skills
+  Sol synthesizes reusable technique guides from completed tasks and improves them over time. The more you use it, the better it gets.
 
 ## Section: Local-First
 

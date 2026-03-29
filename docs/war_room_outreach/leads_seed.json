@@ -1,0 +1,301 @@
+[
+  {
+    "email": "gbarber@kingswood-capital.com",
+    "first_name": "Greg",
+    "last_name": "Barber",
+    "title": "Portfolio Ops",
+    "company": "Kingswood Capital",
+    "company_url": "https://www.kingswood-capital.com",
+    "company_description": "Private equity firm with a portfolio operations function and value-creation orientation.",
+    "industry": "Private Equity",
+    "score": 94,
+    "score_reasons": [
+      "Direct portfolio operations fit",
+      "Strong Decision Sprint buyer profile",
+      "Likely live deal or operating thesis exposure"
+    ],
+    "research_notes": "Primary Wave 1 contact. Optimize for a live deal, turnaround plan, or value-creation thesis.",
+    "pain_points": [
+      "Pre-deal fragility",
+      "Post-acquisition execution risk",
+      "Value-creation thesis pressure-testing"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "jrenna@kingswood-capital.com",
+    "first_name": "Jim",
+    "last_name": "Renna",
+    "title": "Operating Partner",
+    "company": "Kingswood Capital",
+    "company_url": "https://www.kingswood-capital.com",
+    "company_description": "Private equity firm with operating leadership relevant to live investment and operating theses.",
+    "industry": "Private Equity",
+    "score": 92,
+    "score_reasons": [
+      "Named operator",
+      "Likely owner of operating thesis decisions",
+      "High-value buyer profile"
+    ],
+    "research_notes": "Best approached with an operating-thesis angle rather than generic strategy language.",
+    "pain_points": [
+      "Operating plan fragility",
+      "Hidden execution dependencies",
+      "Decision compression under time pressure"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "info@carlinpartners.com",
+    "first_name": "Team",
+    "last_name": "Carlin",
+    "title": "General Contact",
+    "company": "Carlin Capital Partners",
+    "company_url": "",
+    "company_description": "Private equity contact point likely requiring routing to portfolio ops, value creation, or corporate development.",
+    "industry": "Private Equity",
+    "score": 78,
+    "score_reasons": [
+      "Relevant firm profile",
+      "Smaller-firm routing opportunity",
+      "Needs routing rather than hard sell"
+    ],
+    "research_notes": "Use routing-friendly copy and ask for the right internal owner.",
+    "pain_points": [
+      "Investment thesis stress-testing",
+      "Post-acquisition strategy pressure-testing"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "IR@verisk.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor Relations",
+    "company": "Verisk",
+    "company_url": "https://www.verisk.com",
+    "company_description": "Risk analytics company with adjacency to client-facing decision intelligence.",
+    "industry": "Risk Analytics",
+    "score": 74,
+    "score_reasons": [
+      "High strategic fit",
+      "Good partnership angle",
+      "IR contact requires routing"
+    ],
+    "research_notes": "Position as strategic decision-intelligence layer or pilot. Optimize for routing to strategy, product, or corp dev.",
+    "pain_points": [
+      "Scenario compression",
+      "Executive-facing output quality",
+      "Differentiated decision products"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "ir@moodys.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor Relations",
+    "company": "Moody's",
+    "company_url": "https://www.moodys.com",
+    "company_description": "Risk and decision analytics company with strategy and advisory adjacency.",
+    "industry": "Risk Analytics",
+    "score": 73,
+    "score_reasons": [
+      "Strong strategic adjacency",
+      "Analytics and advisory fit",
+      "Routing-oriented contact"
+    ],
+    "research_notes": "Keep it easy to forward internally and emphasize decision stress-testing rather than consulting.",
+    "pain_points": [
+      "Fast scenario intelligence",
+      "Strategic uncertainty",
+      "Client-facing differentiation"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "investor.relations@spglobal.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor Relations",
+    "company": "S&P Global",
+    "company_url": "https://www.spglobal.com",
+    "company_description": "Market intelligence and analytics platform with internal and external decision-support potential.",
+    "industry": "Risk Analytics",
+    "score": 72,
+    "score_reasons": [
+      "Decision-intelligence fit",
+      "Strong enterprise strategic adjacency",
+      "IR routing needed"
+    ],
+    "research_notes": "Position as board-ready scenario compression and ask for the best owner in strategy, product, or corp dev.",
+    "pain_points": [
+      "Executive scenario synthesis",
+      "Fast vulnerability mapping",
+      "Internal strategy support"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "investor.relations@gartner.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor Relations",
+    "company": "Gartner",
+    "company_url": "https://www.gartner.com",
+    "company_description": "Advisory and decision-support business where War Room could fit internal strategy or pilot alongside advisory offerings.",
+    "industry": "Advisory",
+    "score": 71,
+    "score_reasons": [
+      "Advisory fit",
+      "Potential internal and client-facing use",
+      "Routing-oriented contact"
+    ],
+    "research_notes": "Keep the copy compact and oriented toward a decision-intelligence pilot.",
+    "pain_points": [
+      "Fast scenario support",
+      "Differentiated advisory output",
+      "Executive-grade vulnerability analysis"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "investor.relations@swissre.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor Relations",
+    "company": "Swiss Re",
+    "company_url": "https://www.swissre.com",
+    "company_description": "Global reinsurer with strong fit for catastrophe and portfolio decision stress-testing.",
+    "industry": "Reinsurance",
+    "score": 76,
+    "score_reasons": [
+      "Direct tail-risk fit",
+      "Strong scenario-analysis adjacency",
+      "Routing required"
+    ],
+    "research_notes": "Use tail-risk and portfolio-exposure language. Ask for routing to risk strategy, innovation, or corp dev.",
+    "pain_points": [
+      "Tail-risk triggers",
+      "Portfolio exposure decisions",
+      "Mitigation pathway analysis"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "IR@munichre.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor and Rating Agency Relations",
+    "company": "Munich Re",
+    "company_url": "https://www.munichre.com",
+    "company_description": "Global reinsurer with strong fit for portfolio, tail-risk, and hedging-related decision stress-testing.",
+    "industry": "Reinsurance",
+    "score": 76,
+    "score_reasons": [
+      "Strong reinsurance fit",
+      "Tail-risk decision buyer profile",
+      "Needs routing"
+    ],
+    "research_notes": "Use concise risk-language and avoid abstract AI framing.",
+    "pain_points": [
+      "Tail-risk visibility",
+      "Portfolio strategy fragility",
+      "Counterfactual mitigation analysis"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "kam@renre.com",
+    "first_name": "Keith",
+    "last_name": "McCue",
+    "title": "Investor Relations",
+    "company": "RenaissanceRe",
+    "company_url": "https://www.renre.com",
+    "company_description": "Cat-risk specialist reinsurer with a direct fit for targeted decision sprints.",
+    "industry": "Reinsurance",
+    "score": 82,
+    "score_reasons": [
+      "Named contact",
+      "Cat-risk specialization",
+      "Clear War Room use case"
+    ],
+    "research_notes": "Use cat-risk and portfolio-strategy language. This is stronger than a generic IR inbox.",
+    "pain_points": [
+      "Cat-risk decision pressure",
+      "Portfolio vulnerability mapping",
+      "Fast executive synthesis"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "investor.relations@aon.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor Relations",
+    "company": "Aon",
+    "company_url": "https://www.aon.com",
+    "company_description": "Risk and capital advisory organization with strong partnership or buyer fit for decision stress-testing.",
+    "industry": "Risk Advisory",
+    "score": 74,
+    "score_reasons": [
+      "Risk advisory fit",
+      "Potential internal and client-facing use",
+      "Routing needed"
+    ],
+    "research_notes": "Frame this as either internal strategy support or a pilot alongside advisory work.",
+    "pain_points": [
+      "Scenario compression",
+      "Vulnerability mapping",
+      "Decision support for clients and internal strategy"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  },
+  {
+    "email": "mmc.investor.relations@mmc.com",
+    "first_name": "Investor",
+    "last_name": "Relations",
+    "title": "Investor Relations",
+    "company": "Marsh McLennan",
+    "company_url": "https://www.marshmclennan.com",
+    "company_description": "Risk and advisory business where War Room may fit internal strategy or a client-facing decision-intelligence pilot.",
+    "industry": "Risk Advisory",
+    "score": 74,
+    "score_reasons": [
+      "Advisory fit",
+      "Good internal routing candidate",
+      "Strong scenario-analysis adjacency"
+    ],
+    "research_notes": "Keep it easy to forward and ask directly for strategy, innovation, or corporate development routing.",
+    "pain_points": [
+      "High-uncertainty decision support",
+      "Scenario pressure-testing",
+      "Executive-facing advisory compression"
+    ],
+    "campaign_id": "camp-warroom-wave1",
+    "source": "war_room_seed",
+    "source_url": "C:\\dev\\solstice-war-room\\docs\\WAR_ROOM_OUTREACH_LIST.md"
+  }
+]
