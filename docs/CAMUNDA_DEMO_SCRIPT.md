@@ -9,15 +9,22 @@ py -m pip install --upgrade pip pipx
 pipx ensurepath
 pipx install solstice-agent
 pipx inject solstice-agent artemis-camunda
+```
 
+> **Important:** use `pipx inject`, not `pip install` — Sol runs in an isolated pipx environment so a regular `pip install artemis-camunda` won't be visible to it.
+
+```powershell
 $env:CAMUNDA_BASE_URL="https://your-camunda.example.com"
 $env:CAMUNDA_CLIENT_ID="your-client-id"
 $env:CAMUNDA_CLIENT_SECRET="your-client-secret"
-# Optional license key (trial auto-starts if omitted)
+# Optional — a 14-day trial auto-starts if omitted
 $env:ARTEMIS_LICENSE_KEY="your-license-key"
 
 sol --setup
+sol
 ```
+
+If `sol` doesn't launch after install, open a new terminal. If it still fails: `py -m solstice_agent`
 
 ## 1) Connect and Validate Cluster
 
