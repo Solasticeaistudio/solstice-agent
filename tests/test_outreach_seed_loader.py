@@ -26,7 +26,7 @@ def test_load_seed_bundle_adds_campaign_and_leads(tmp_path):
             "name": "Test Campaign",
             "campaign_type": "customer",
             "status": "draft",
-            "persona_name": "outreach_war_room",
+            "persona_name": "outreach_customer",
         },
     )
     _write_json(
@@ -55,7 +55,7 @@ def test_load_seed_bundle_adds_campaign_and_leads(tmp_path):
     store = OutreachStore(root=str(store_root))
     campaign = store.get_campaign("camp-test")
     assert campaign is not None
-    assert campaign.persona_name == "outreach_war_room"
+    assert campaign.persona_name == "outreach_customer"
     assert len(store.list_leads(campaign_id="camp-test")) == 2
 
 
@@ -272,7 +272,7 @@ def test_outreach_prepare_draft_batch_creates_compose_artifacts(tmp_path):
             "name": "Draft Campaign",
             "campaign_type": "customer",
             "status": "draft",
-            "persona_name": "outreach_war_room",
+            "persona_name": "outreach_customer",
             "value_proposition": "Paid Decision Sprint",
             "email_templates": {"initial": "Be concise."},
         },
@@ -374,7 +374,7 @@ def test_prepare_reply_batch_prepares_safe_and_escalates_sensitive(tmp_path):
             "name": "Reply Campaign",
             "campaign_type": "customer",
             "status": "draft",
-            "persona_name": "outreach_war_room",
+            "persona_name": "outreach_customer",
             "value_proposition": "Paid Decision Sprint",
             "email_templates": {"reply": "Answer directly."},
         },
@@ -499,7 +499,7 @@ def test_outreach_autoreply_safe_sends_only_safe_replies(tmp_path):
             "name": "Auto Campaign",
             "campaign_type": "customer",
             "status": "draft",
-            "persona_name": "outreach_war_room",
+            "persona_name": "outreach_customer",
             "value_proposition": "Paid Decision Sprint",
             "email_templates": {"reply": "Answer directly."},
         },
@@ -580,7 +580,7 @@ def test_outreach_autoreply_safe_handles_demo_with_booking_link(tmp_path):
             "name": "Demo Campaign",
             "campaign_type": "customer",
             "status": "draft",
-            "persona_name": "outreach_war_room",
+            "persona_name": "outreach_customer",
         },
     )
     _write_json(

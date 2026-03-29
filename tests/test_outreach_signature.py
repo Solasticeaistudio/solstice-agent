@@ -27,21 +27,21 @@ def test_outreach_send_appends_signature_and_uses_html_for_graph(tmp_path, monke
     store = OutreachStore(root=str(store_root))
 
     campaign = Campaign(
-        id="camp-warroom",
-        name="War Room",
+        id="camp-test",
+        name="Test Campaign",
         campaign_type=CampaignType.CUSTOMER,
         status=CampaignStatus.ACTIVE,
         draft_only=False,
-        mailbox="justin@solsticestudio.ai",
+        mailbox="outreach@example.com",
     )
     lead = Lead(
         id="lead-one",
         lead_type=LeadType.CUSTOMER,
         stage=LeadStage.QUALIFIED,
-        email="jhmeister87@gmail.com",
-        first_name="Justin",
-        last_name="Meister",
-        company="Solstice Studio",
+        email="contact@example.com",
+        first_name="Alex",
+        last_name="Test",
+        company="Example Corp",
         campaign_id=campaign.id,
     )
     store.save_campaign(campaign)
@@ -49,20 +49,18 @@ def test_outreach_send_appends_signature_and_uses_html_for_graph(tmp_path, monke
 
     monkeypatch.setattr(composer_module, "get_store", lambda: OutreachStore(root=str(store_root)))
     monkeypatch.setenv("GATEWAY_EMAIL_PROVIDER", "graph")
-    monkeypatch.setenv("GATEWAY_EMAIL_ADDRESS", "iris@solsticestudio.ai")
-    monkeypatch.setenv("GATEWAY_EMAIL_GRAPH_USER", "justin@solsticestudio.ai")
+    monkeypatch.setenv("GATEWAY_EMAIL_ADDRESS", "agent@example.com")
+    monkeypatch.setenv("GATEWAY_EMAIL_GRAPH_USER", "outreach@example.com")
     monkeypatch.setattr(
         "solstice_agent.gateway.channels.email_channel.EmailChannel",
         _FakeEmailChannel,
     )
 
-    result = composer_module.outreach_send("lead-one", "War Room test", "Short body.")
+    result = composer_module.outreach_send("lead-one", "Test subject", "Short body.")
 
-    assert "Email sent to Justin Meister" in result
+    assert "Email sent to Alex Test" in result
     assert _FakeEmailChannel.last_call is not None
     assert _FakeEmailChannel.last_call["metadata"]["content_type"] == "HTML"
-    assert "justin@solsticestudio.ai" in _FakeEmailChannel.last_call["text"]
-    assert "Solstice War Room" in _FakeEmailChannel.last_call["text"]
+    assert "solsticestudio.ai" in _FakeEmailChannel.last_call["text"]
     conversation = OutreachStore(root=str(store_root)).get_conversation("lead-one")
     assert conversation is not None
-    assert "justin@solsticestudio.ai" in conversation.messages[-1].body

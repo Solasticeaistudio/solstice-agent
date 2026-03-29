@@ -15,13 +15,13 @@ from .models import LeadStage, EmailMessage, Conversation
 
 log = logging.getLogger("solstice.outreach.composer")
 
-DEFAULT_SIGNATURE_NAME = "Justin Meister"
-DEFAULT_SIGNATURE_TITLE = "Founder | Solstice Studio"
-DEFAULT_SIGNATURE_GROUP = "Solstice War Room"
-DEFAULT_SIGNATURE_TAGLINE = "Strategic Intelligence for high-stakes decisions"
-DEFAULT_SIGNATURE_WEBSITE = "https://solsticestudio.ai/strategic-intelligence"
-DEFAULT_SIGNATURE_EMAIL = "justin@solsticestudio.ai"
-DEFAULT_SIGNATURE_LOGO_URL = "https://solsticestudio.ai/static/ssi-logo.png"
+DEFAULT_SIGNATURE_NAME = os.environ.get("SOL_SIGNATURE_NAME", "Solstice Studio")
+DEFAULT_SIGNATURE_TITLE = os.environ.get("SOL_SIGNATURE_TITLE", "Founder | Solstice Studio")
+DEFAULT_SIGNATURE_GROUP = os.environ.get("SOL_SIGNATURE_GROUP", "Solstice Studio")
+DEFAULT_SIGNATURE_TAGLINE = os.environ.get("SOL_SIGNATURE_TAGLINE", "Local-first AI agents")
+DEFAULT_SIGNATURE_WEBSITE = os.environ.get("SOL_SIGNATURE_WEBSITE", "https://solsticestudio.ai")
+DEFAULT_SIGNATURE_EMAIL = os.environ.get("SOL_SIGNATURE_EMAIL", "hello@solsticestudio.ai")
+DEFAULT_SIGNATURE_LOGO_URL = os.environ.get("SOL_SIGNATURE_LOGO_URL", "https://solsticestudio.ai/static/ssi-logo.png")
 
 
 def outreach_compose(lead_id: str, email_type: str = "initial", custom_angle: str = "") -> str:
@@ -268,9 +268,9 @@ def _body_has_signature(body: str) -> bool:
     lowered = (body or "").lower()
     markers = (
         "solsticestudio.ai",
-        "justin@solsticestudio.ai",
-        "justin meister",
-        "solstice war room",
+        DEFAULT_SIGNATURE_EMAIL.lower(),
+        DEFAULT_SIGNATURE_NAME.lower(),
+        DEFAULT_SIGNATURE_GROUP.lower(),
     )
     return any(marker in lowered for marker in markers)
 

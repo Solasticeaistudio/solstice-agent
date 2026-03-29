@@ -19,7 +19,7 @@ class _FakeApp:
         self._result = result
 
     def get_accounts(self):
-        return [{"username": "justin@solsticestudio.ai"}]
+        return [{"username": "agent@example.com"}]
 
     def acquire_token_silent(self, scopes, account):
         return self._result
@@ -50,7 +50,7 @@ def test_email_channel_uses_shared_graph_cache(tmp_path, monkeypatch):
 
     channel = EmailChannel(
         {
-            "email": "iris@solsticestudio.ai",
+            "email": "agent@example.com",
             "provider": "graph",
             "graph_credentials_path": str(credentials_path),
             "graph_cache_path": str(cache_path),
@@ -70,7 +70,7 @@ def test_email_channel_prefers_explicit_graph_token(tmp_path):
 
     channel = EmailChannel(
         {
-            "email": "iris@solsticestudio.ai",
+            "email": "agent@example.com",
             "provider": "graph",
             "graph_token": "explicit-token",
             "graph_credentials_path": str(credentials_path),
@@ -92,14 +92,14 @@ def test_email_channel_reports_shared_cache_scope_failure(tmp_path, monkeypatch)
 
     channel = EmailChannel(
         {
-            "email": "iris@solsticestudio.ai",
+            "email": "agent@example.com",
             "provider": "graph",
             "graph_credentials_path": str(credentials_path),
             "graph_cache_path": str(cache_path),
         }
     )
 
-    result = channel.create_draft("jhmeister87@gmail.com", "test body", {"subject": "test"})
+    result = channel.create_draft("contact@example.com", "test body", {"subject": "test"})
 
     assert result["success"] is False
     assert "Mail.Send" in result["error"]

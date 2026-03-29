@@ -188,8 +188,7 @@ sol-gateway
 ```
 
 For Outlook/Graph email channels, Sol can use either a direct `GATEWAY_EMAIL_GRAPH_TOKEN`
-or a shared MSAL cache from an existing desktop integration such as
-`C:\dev\Solstice-EIM\data\outlook_token.json`.
+or a shared MSAL cache file via `GATEWAY_EMAIL_GRAPH_CACHE_PATH`.
 
 ## Talk to It by Voice
 
@@ -227,15 +226,11 @@ You can also just ask:
 > Schedule a daily summary of my GitHub notifications at 9am
 ```
 
-## Demo + Benchmarks
+## Docs
 
-- Demo scripts: `docs/DEMO.md`
-- Benchmarks: `docs/BENCHMARKS.md`
-- One-pager: `docs/ONEPAGER.md`
-- Connector interface: `docs/CONNECTORS.md`
-- War Room bootstrap: `docs/WAR_ROOM_AGENT_BOOTSTRAP.md`
-- Outreach user guide: `docs/OUTREACH_USER_GUIDE.md`
-- War Room env reference: `docs/WAR_ROOM_ENV_REFERENCE.md`
+- Security: `docs/SECURITY.md`
+- Camunda quickstart: `docs/WINDOWS_CAMUNDA_QUICKSTART.md`
+- Camunda demo script: `docs/CAMUNDA_DEMO_SCRIPT.md`
 
 ## Install Options
 
