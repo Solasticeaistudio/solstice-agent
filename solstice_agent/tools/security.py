@@ -10,6 +10,8 @@ import logging
 import os
 import re
 import socket
+import threading
+from contextlib import contextmanager
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -135,6 +137,7 @@ def validate_url(url: str, allow_private: bool = False) -> Optional[str]:
 # Default workspace root — set by CLI/server at startup
 _workspace_root: Optional[str] = None
 _workspace_required: bool = False
+_workspace_context = threading.local()
 
 # Paths that should never be touched regardless of workspace
 _ALWAYS_BLOCKED = [
@@ -173,6 +176,27 @@ def is_workspace_required() -> bool:
     return _workspace_required
 
 
+@contextmanager
+def workspace_root_context(root: Optional[str], required: Optional[bool] = None):
+    """Temporarily override workspace settings for the current thread."""
+    previous = getattr(_workspace_context, "settings", None)
+    _workspace_context.settings = {
+        "root": os.path.realpath(root) if root else None,
+        "required": _workspace_required if required is None else required,
+    }
+    try:
+        yield
+    finally:
+        _workspace_context.settings = previous
+
+
+def _active_workspace_settings() -> tuple[Optional[str], bool]:
+    settings = getattr(_workspace_context, "settings", None)
+    if settings is None:
+        return _workspace_root, _workspace_required
+    return settings.get("root"), settings.get("required", False)
+
+
 def validate_path(path: str, operation: str = "access") -> Optional[str]:
     """Validate a file path is within the workspace and not a sensitive file.
 
@@ -187,19 +211,21 @@ def validate_path(path: str, operation: str = "access") -> Optional[str]:
         if pattern.search(resolved):
             return f"Cannot {operation}: path matches a sensitive file pattern."
 
-    if _workspace_root is None and _workspace_required:
+    active_root, active_required = _active_workspace_settings()
+
+    if active_root is None and active_required:
         return f"Cannot {operation}: no workspace directory is configured."
 
     # Check workspace boundary if set
-    if _workspace_root is not None:
+    if active_root is not None:
         try:
-            common = os.path.commonpath([_workspace_root, resolved])
+            common = os.path.commonpath([active_root, resolved])
         except ValueError:
             common = ""
-        if common != _workspace_root:
+        if common != active_root:
             return (
                 f"Cannot {operation}: path '{path}' is outside the workspace "
-                f"directory '{_workspace_root}'."
+                f"directory '{active_root}'."
             )
 
     return None

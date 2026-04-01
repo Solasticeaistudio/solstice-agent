@@ -7,6 +7,7 @@ Manages per-sender conversation history and proactive outbound.
 
 import os
 import logging
+import threading
 from typing import Dict, List, Any, Optional
 
 from .models import ChannelType, GatewayMessage
@@ -35,6 +36,7 @@ class GatewayManager:
         self._router = router
         self.channels: Dict[ChannelType, BaseChannel] = {}
         self._conversations: Dict[str, List[Dict]] = {}
+        self._subagent_followers: Dict[str, bool] = {}
 
     def set_agent(self, agent):
         """Set the agent that handles messages."""
@@ -327,6 +329,11 @@ class GatewayManager:
 
     def _process_message(self, msg: GatewayMessage) -> str:
         """Route message to agent (multi-agent or single-agent)."""
+        lowered = (msg.text or "").strip().lower()
+        if lowered == "/tasks":
+            from ..agent.tasks import task_list
+            return task_list()
+
         agent_name = "default"
 
         if self._pool and self._router:
@@ -341,6 +348,92 @@ class GatewayManager:
             agent = self.agent
         else:
             return "Agent not configured."
+
+        if lowered == "/subagents" and "subagent_list" in getattr(agent, "_tools", {}):
+            return agent._tools["subagent_list"]()
+        if lowered == "/workflows" and "workflow_list" in getattr(agent, "_tools", {}):
+            return agent._tools["workflow_list"]()
+        if lowered.startswith("/workflow ") and "workflow_status" in getattr(agent, "_tools", {}):
+            return agent._tools["workflow_status"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/workflow-events ") and "workflow_events" in getattr(agent, "_tools", {}):
+            return agent._tools["workflow_events"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/workflow-export ") and "workflow_export" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 2:
+                snapshot_id = parts[2] if len(parts) >= 3 else ""
+                return agent._tools["workflow_export"](parts[1], snapshot_id)
+        if lowered.startswith("/workflow-snapshot ") and "workflow_snapshot" in getattr(agent, "_tools", {}):
+            try:
+                _, workflow_id, label = msg.text.split(" ", 2)
+            except ValueError:
+                workflow_id = msg.text.split(" ", 1)[1].strip()
+                label = ""
+            return agent._tools["workflow_snapshot"](workflow_id, label)
+        if lowered.startswith("/retry-workflow-node ") and "workflow_retry_node" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 3:
+                return agent._tools["workflow_retry_node"](parts[1], parts[2])
+        if lowered.startswith("/retry-workflow-branch ") and "workflow_retry_branch" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 3:
+                return agent._tools["workflow_retry_branch"](parts[1], parts[2])
+        if lowered.startswith("/disable-workflow-node ") and "workflow_disable_node" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 3:
+                return agent._tools["workflow_disable_node"](parts[1], parts[2])
+        if lowered.startswith("/enable-workflow-node ") and "workflow_enable_node" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 3:
+                return agent._tools["workflow_enable_node"](parts[1], parts[2])
+        if lowered.startswith("/remove-workflow-node ") and "workflow_remove_node" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 3:
+                return agent._tools["workflow_remove_node"](parts[1], parts[2])
+        if lowered.startswith("/rewire-workflow ") and "workflow_rewire_dependency" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 5:
+                policy = parts[5] if len(parts) >= 6 else "block"
+                return agent._tools["workflow_rewire_dependency"](parts[1], parts[2], parts[3], parts[4], policy)
+        if lowered.startswith("/set-workflow-priority ") and "workflow_set_priority" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 4:
+                return agent._tools["workflow_set_priority"](parts[1], parts[2], int(parts[3]))
+        if lowered.startswith("/set-workflow-edge ") and "workflow_update_edge_policy" in getattr(agent, "_tools", {}):
+            parts = msg.text.split()
+            if len(parts) >= 5:
+                return agent._tools["workflow_update_edge_policy"](parts[1], parts[2], parts[3], parts[4])
+        if lowered.startswith("/cancel-workflow ") and "workflow_cancel" in getattr(agent, "_tools", {}):
+            return agent._tools["workflow_cancel"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/resume-workflow ") and "workflow_resume" in getattr(agent, "_tools", {}):
+            return agent._tools["workflow_resume"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/submit-workflow ") and "submit_workflow" in getattr(agent, "_tools", {}):
+            return agent._tools["submit_workflow"](msg.text.split(" ", 1)[1].strip(), "")
+        if lowered.startswith("/add-workflow-node ") and "workflow_add_node" in getattr(agent, "_tools", {}):
+            try:
+                _, workflow_id, node_id, prompt = msg.text.split(" ", 3)
+            except ValueError:
+                return "Usage: /add-workflow-node <workflow_id> <node_id> <prompt>"
+            return agent._tools["workflow_add_node"](workflow_id, node_id, prompt)
+        if lowered == "/subagent-graph" and "subagent_graph" in getattr(agent, "_tools", {}):
+            return agent._tools["subagent_graph"]("")
+        if lowered.startswith("/subagent-graph ") and "subagent_graph" in getattr(agent, "_tools", {}):
+            return agent._tools["subagent_graph"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/subagent ") and "subagent_result" in getattr(agent, "_tools", {}):
+            return agent._tools["subagent_result"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/subagent-progress ") and "subagent_progress" in getattr(agent, "_tools", {}):
+            return agent._tools["subagent_progress"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/resume-subagent ") and "resume_subagent" in getattr(agent, "_tools", {}):
+            return agent._tools["resume_subagent"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/cancel-subagent ") and "cancel_subagent" in getattr(agent, "_tools", {}):
+            return agent._tools["cancel_subagent"](msg.text.split(" ", 1)[1].strip())
+        if lowered.startswith("/follow-subagent ") and "subagent_progress" in getattr(agent, "_tools", {}):
+            run_id = msg.text.split(" ", 1)[1].strip()
+            self._follow_subagent_progress(msg, run_id)
+            return f"Following sub-agent {run_id}. Progress updates will be pushed here."
+        if lowered.startswith("/follow-workflow ") and "workflow_events" in getattr(agent, "_tools", {}):
+            workflow_id = msg.text.split(" ", 1)[1].strip()
+            self._follow_workflow_events(msg, workflow_id)
+            return f"Following workflow {workflow_id}. Event updates will be pushed here."
 
         try:
             response_text = agent.chat(msg.text)
@@ -361,7 +454,90 @@ class GatewayManager:
         return channel.send_message(recipient_id, text, metadata)
 
     def get_status(self) -> Dict[str, Any]:
+        task_summary = ""
+        try:
+            from ..agent.tasks import _get_board
+            task_summary = f"{len(_get_board().list())} tracked"
+        except Exception:
+            task_summary = "unavailable"
+
+        subagent_summary = "unavailable"
+        if self.agent and "subagent_list" in getattr(self.agent, "_tools", {}):
+            try:
+                from ..agent.subagents import _get_manager
+                subagent_summary = f"{len(_get_manager().list())} runs"
+            except Exception:
+                pass
         return {
             "channels": {ct.value: {"enabled": ch.is_configured()} for ct, ch in self.channels.items()},
             "agent": self.agent.provider.name() if self.agent else "not set",
+            "tasks": task_summary,
+            "subagents": subagent_summary,
         }
+
+    def _follow_subagent_progress(self, msg: GatewayMessage, run_id: str):
+        key = f"{msg.channel.value}:{msg.sender_id}:{run_id}"
+        if self._subagent_followers.get(key):
+            return
+        self._subagent_followers[key] = True
+
+        def _worker():
+            try:
+                from ..agent.subagents import _get_manager
+
+                manager = _get_manager()
+                watcher = manager.subscribe(run_id)
+                channel = self.channels.get(msg.channel)
+                if not channel or not channel.is_configured():
+                    return
+                recipient = msg.channel_metadata.get("chat_id", msg.sender_id)
+                while True:
+                    try:
+                        event = watcher.get(timeout=15)
+                    except Exception:
+                        run = manager.get(run_id)
+                        if run and run.status in {"completed", "failed", "interrupted", "cancelled"}:
+                            break
+                        continue
+                    event_type = event.get("type", "progress")
+                    message = event.get("message", event_type)
+                    channel.send_message(recipient, f"[{run_id}] {message}", {**msg.channel_metadata, "event": event})
+                    run = manager.get(run_id)
+                    if run and run.status in {"completed", "failed", "interrupted", "cancelled"} and run.events and run.events[-1] == event:
+                        channel.send_message(recipient, f"[{run_id}] finished with status {run.status}", msg.channel_metadata)
+                        break
+                manager.unsubscribe(run_id, watcher)
+            finally:
+                self._subagent_followers.pop(key, None)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _follow_workflow_events(self, msg: GatewayMessage, workflow_id: str):
+        key = f"{msg.channel.value}:{msg.sender_id}:workflow:{workflow_id}"
+        if self._subagent_followers.get(key):
+            return
+        self._subagent_followers[key] = True
+
+        def _worker():
+            try:
+                from ..agent.subagents import _get_manager
+
+                manager = _get_manager()
+                watcher = manager.subscribe_workflow(workflow_id)
+                channel = self.channels.get(msg.channel)
+                if not channel or not channel.is_configured():
+                    return
+                recipient = msg.channel_metadata.get("chat_id", msg.sender_id)
+                while True:
+                    try:
+                        event = watcher.get(timeout=15)
+                    except Exception:
+                        continue
+                    event_type = event.get("type", "workflow")
+                    message = event.get("message", event_type)
+                    channel.send_message(recipient, f"[{workflow_id}] {message}", {**msg.channel_metadata, "event": event})
+                manager.unsubscribe_workflow(workflow_id, watcher)
+            finally:
+                self._subagent_followers.pop(key, None)
+
+        threading.Thread(target=_worker, daemon=True).start()

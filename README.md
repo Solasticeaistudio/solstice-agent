@@ -109,7 +109,8 @@ memory, voice, scheduling, browser control, and local-first guardrails.
 Sol ships with built-in tools across files, browser, terminal, web, API discovery,
 voice, screen capture, recording, Docker sandboxing, SSH remote execution,
 Singularity/Apptainer HPC containers, Modal serverless compute, scheduling,
-self-improving skills, memory, and cross-channel messaging.
+self-improving skills, memory, cross-channel messaging, background sub-agents,
+and workflow orchestration.
 
 It also supports external connectors installed into the same Python environment.
 That interface stays public, while deep Artemis integrations can ship as separate
@@ -129,6 +130,8 @@ What that means in practice:
 - Listen for a wake word and reply by voice
 - Schedule recurring work while you are away
 - Respond through messaging platforms using the same memory and personality
+- Run background sub-agents with task tracking, live progress, and resumable state
+- Submit workflow DAGs, mutate queued nodes, stream workflow events, and export snapshots
 
 ## The Main Hook
 
@@ -230,8 +233,23 @@ You can also just ask:
 
 - Security: `docs/SECURITY.md`
 - Connectors: `docs/CONNECTORS.md`
+- User guide: `docs/USER_GUIDE.md`
+- Roadmap / todo: `docs/TODO.md`
 - Camunda quickstart: `docs/WINDOWS_CAMUNDA_QUICKSTART.md`
 - Camunda demo script: `docs/CAMUNDA_DEMO_SCRIPT.md`
+
+## Workflow Orchestration
+
+Sol now has first-class orchestration for delegated work:
+
+- async sub-agents with resumable runs
+- persistent task and workflow state
+- dependency-aware workflow DAGs
+- workflow mutation for node add, disable, enable, remove, retry, and edge rewiring
+- live sub-agent and workflow event streams
+- workflow snapshots and JSON export for auditability
+
+The next planned step is workflow replay and cloning from an exported spec or saved snapshot. That item is tracked in `docs/TODO.md`.
 
 ## Install Options
 

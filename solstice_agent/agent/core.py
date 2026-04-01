@@ -13,12 +13,17 @@ The loop continues until the LLM responds with text (no tool calls) or hits max 
 
 import json
 import logging
-from typing import Generator, List, Dict, Any, Callable
+import copy
+from typing import Generator, List, Dict, Any, Callable, Optional
 
 from .providers.base import BaseLLMProvider, LLMResponse, StreamEvent
 from .personality import Personality, DEFAULT
 
 log = logging.getLogger("solstice.agent")
+
+
+class AgentExecutionCancelled(Exception):
+    """Raised when an agent run is cancelled cooperatively."""
 
 
 class Agent:
@@ -56,6 +61,7 @@ class Agent:
         personality: Personality = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        max_tool_iterations: Optional[int] = None,
         skill_loader=None,
         compactor=None,
         synthesizer=None,
@@ -64,6 +70,7 @@ class Agent:
         self.personality = personality or DEFAULT
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.max_tool_iterations = max_tool_iterations or self.MAX_TOOL_ITERATIONS
         self.skill_loader = skill_loader
         self.compactor = compactor
         self.synthesizer = synthesizer
@@ -74,8 +81,18 @@ class Agent:
         # Tool registry
         self._tools: Dict[str, Callable] = {}
         self._tool_schemas: List[Dict[str, Any]] = []
+        self.command_policy: Dict[str, List[str]] = {"allowed_prefixes": [], "denied_prefixes": []}
+        self.workspace_root_override: Optional[str] = None
+        self.workspace_required_override: Optional[bool] = None
+        self.auto_track_tasks: bool = False
+        self.progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
+        self.should_continue_callback: Optional[Callable[[], bool]] = None
 
         log.info(f"Agent initialized: {self.personality.name} via {provider.name()}")
+
+    def list_tool_names(self) -> List[str]:
+        """List currently registered tool names."""
+        return list(self._tools.keys())
 
     def register_tool(self, name: str, handler: Callable, schema: Dict[str, Any]):
         """
@@ -103,6 +120,71 @@ class Agent:
         for name, (handler, schema) in tools.items():
             self.register_tool(name, handler, schema)
 
+    def clone_with_tools(
+        self,
+        tool_names: Optional[List[str]] = None,
+        extra_instructions: str = "",
+        include_history: bool = False,
+        allowed_command_prefixes: Optional[List[str]] = None,
+        denied_command_prefixes: Optional[List[str]] = None,
+        workspace_root: Optional[str] = None,
+        workspace_required: Optional[bool] = None,
+        model_override: str = "",
+        max_tool_iterations: Optional[int] = None,
+    ) -> "Agent":
+        """
+        Create a child agent with a filtered tool surface.
+        This is the core primitive used by the sub-agent tool.
+        """
+        child_personality = self.personality
+        if extra_instructions:
+            context = self.personality.context or ""
+            extra = f"Sub-agent instructions:\n{extra_instructions}"
+            child_personality = Personality(
+                name=self.personality.name,
+                role=self.personality.role,
+                tone=self.personality.tone,
+                rules=list(self.personality.rules),
+                context=(context + "\n\n" + extra).strip(),
+            )
+
+        child_provider = self.provider
+        if model_override:
+            try:
+                child_provider = copy.copy(self.provider)
+                child_provider.model = model_override
+            except Exception:
+                child_provider = self.provider
+
+        child = Agent(
+            provider=child_provider,
+            personality=child_personality,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            max_tool_iterations=max_tool_iterations or self.max_tool_iterations,
+            skill_loader=self.skill_loader,
+            compactor=self.compactor,
+            synthesizer=self.synthesizer,
+        )
+        allowed = set(tool_names or self._tools.keys())
+        for schema in self._tool_schemas:
+            name = schema["name"]
+            if name in allowed and name != "run_subagent":
+                child.register_tool(name, self._tools[name], schema)
+
+        if include_history:
+            child.history = list(self.history)
+        child.command_policy = {
+            "allowed_prefixes": list(allowed_command_prefixes or self.command_policy.get("allowed_prefixes", [])),
+            "denied_prefixes": list(denied_command_prefixes or self.command_policy.get("denied_prefixes", [])),
+        }
+        child.workspace_root_override = workspace_root if workspace_root is not None else self.workspace_root_override
+        child.workspace_required_override = (
+            workspace_required if workspace_required is not None else self.workspace_required_override
+        )
+        child.auto_track_tasks = self.auto_track_tasks
+        return child
+
     def chat(self, message: str, images: list = None) -> str:
         """
         Send a message and get a response. Tools are called automatically.
@@ -118,6 +200,9 @@ class Agent:
         4. Repeat until the LLM responds with text
         5. Return the final text response
         """
+        auto_task_id = self._maybe_start_auto_task(message if isinstance(message, str) else "")
+        self._emit_progress("request_started", message=(message if isinstance(message, str) else ""))
+
         # Build user message content (text or multimodal)
         if images and self.provider.supports_vision():
             from .providers.base import encode_image
@@ -146,7 +231,8 @@ class Agent:
 
         # Tool-calling loop
         tool_call_count = 0
-        for iteration in range(self.MAX_TOOL_ITERATIONS):
+        for iteration in range(self.max_tool_iterations):
+            self._ensure_can_continue()
             tools = self._tool_schemas if self._tools and self.provider.supports_tools() else None
 
             response = self.provider.chat(
@@ -155,6 +241,11 @@ class Agent:
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
+            self._emit_progress(
+                "model_iteration",
+                iteration=iteration + 1,
+                tool_calls=[tc.get("name") for tc in response.tool_calls],
+            )
 
             if not response.tool_calls:
                 # No tool calls — we have our final response
@@ -162,6 +253,8 @@ class Agent:
                 self.history.append({"role": "assistant", "content": final_text})
                 self._compact_or_trim()
                 self._maybe_synthesize(tool_call_count)
+                self._finish_auto_task(auto_task_id, "completed", final_text)
+                self._emit_progress("request_completed", response=final_text)
                 return final_text
 
             # Execute tool calls
@@ -182,6 +275,8 @@ class Agent:
         self.history.append({"role": "assistant", "content": fallback})
         self._compact_or_trim()
         self._maybe_synthesize(tool_call_count)
+        self._finish_auto_task(auto_task_id, "completed", fallback)
+        self._emit_progress("request_completed", response=fallback)
         return fallback
 
     def chat_stream(self, message: str, images: list = None) -> Generator[StreamEvent, None, None]:
@@ -215,10 +310,13 @@ class Agent:
 
         # Tool loop: use non-streaming chat() for tool iterations
         tool_iterations = 0
-        for iteration in range(self.MAX_TOOL_ITERATIONS):
+        auto_task_id = self._maybe_start_auto_task(message if isinstance(message, str) else "")
+        self._emit_progress("request_started", message=(message if isinstance(message, str) else ""))
+        for iteration in range(self.max_tool_iterations):
+            self._ensure_can_continue()
             # On the last possible iteration, or if no tools, stream directly
             # Otherwise, try non-streaming first to check for tool calls
-            if not tools or iteration == self.MAX_TOOL_ITERATIONS - 1:
+            if not tools or iteration == self.max_tool_iterations - 1:
                 break
 
             response = self.provider.chat(
@@ -227,6 +325,11 @@ class Agent:
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
+            self._emit_progress(
+                "model_iteration",
+                iteration=iteration + 1,
+                tool_calls=[tc.get("name") for tc in response.tool_calls],
+            )
 
             if not response.tool_calls:
                 # No tool calls — we should stream the final response instead
@@ -234,6 +337,8 @@ class Agent:
                 final_text = response.text.strip()
                 self.history.append({"role": "assistant", "content": final_text})
                 self._compact_or_trim()
+                self._finish_auto_task(auto_task_id, "completed", final_text)
+                self._emit_progress("request_completed", response=final_text)
                 yield StreamEvent(type="text", text=final_text)
                 yield StreamEvent(type="done", usage=response.usage)
                 return
@@ -246,10 +351,12 @@ class Agent:
 
             for tool_call in response.tool_calls:
                 tool_iterations += 1
-                if tool_iterations > self.MAX_TOOL_ITERATIONS:
+                if tool_iterations > self.max_tool_iterations:
                     final_text = "I got stuck in a tool loop. Try rephrasing?"
                     self.history.append({"role": "assistant", "content": final_text})
                     self._compact_or_trim()
+                    self._finish_auto_task(auto_task_id, "completed", final_text)
+                    self._emit_progress("request_completed", response=final_text)
                     yield StreamEvent(type="text", text=final_text)
                     yield StreamEvent(type="done", usage=response.usage)
                     return
@@ -259,12 +366,14 @@ class Agent:
 
         # Final response: stream it
         full_text = ""
+        self._ensure_can_continue()
         for event in self.provider.stream(
             messages=messages,
             tools=tools,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
         ):
+            self._ensure_can_continue()
             if event.type == "text":
                 full_text += event.text
                 yield event
@@ -275,10 +384,12 @@ class Agent:
                     LLMResponse(text=full_text, tool_calls=event.tool_calls)))
                 for tool_call in event.tool_calls:
                     tool_iterations += 1
-                    if tool_iterations > self.MAX_TOOL_ITERATIONS:
+                    if tool_iterations > self.max_tool_iterations:
                         final_text = "I got stuck in a tool loop. Try rephrasing?"
                         self.history.append({"role": "assistant", "content": final_text})
                         self._compact_or_trim()
+                        self._finish_auto_task(auto_task_id, "completed", final_text)
+                        self._emit_progress("request_completed", response=final_text)
                         yield StreamEvent(type="text", text=final_text)
                         yield StreamEvent(type="done", usage=None)
                         return
@@ -292,6 +403,8 @@ class Agent:
                 final = fallback.text.strip()
                 self.history.append({"role": "assistant", "content": final})
                 self._compact_or_trim()
+                self._finish_auto_task(auto_task_id, "completed", final)
+                self._emit_progress("request_completed", response=final)
                 yield StreamEvent(type="text", text=final)
                 yield StreamEvent(type="done", usage=fallback.usage)
                 return
@@ -301,15 +414,19 @@ class Agent:
         final_text = full_text.strip()
         self.history.append({"role": "assistant", "content": final_text})
         self._compact_or_trim()
+        self._finish_auto_task(auto_task_id, "completed", final_text)
+        self._emit_progress("request_completed", response=final_text)
         yield StreamEvent(type="done")
 
     def _execute_tool(self, tool_call: Dict[str, Any]) -> str:
         """Execute a single tool call and return the result as a string."""
+        self._ensure_can_continue()
         name = tool_call["name"]
         args = tool_call.get("arguments", {})
 
         handler = self._tools.get(name)
         if not handler:
+            self._emit_progress("tool_failed", tool=name, error=f"Unknown tool '{name}'")
             return self._format_tool_payload(
                 tool=name,
                 status="error",
@@ -318,9 +435,21 @@ class Agent:
 
         try:
             log.info(f"Executing tool: {name}({self._safe_args_preview(args)})")
-            result = handler(**args)
+            self._emit_progress("tool_started", tool=name, args=args)
+            from ..tools.terminal import command_policy_context
+            from ..tools.security import workspace_root_context
+
+            with workspace_root_context(
+                self.workspace_root_override,
+                required=self.workspace_required_override,
+            ), command_policy_context(
+                denied_prefixes=self.command_policy.get("denied_prefixes"),
+                allowed_prefixes=self.command_policy.get("allowed_prefixes"),
+            ):
+                result = handler(**args)
             result_str = str(result) if result is not None else "Done."
             log.debug(f"Tool result: {result_str[:200]}")
+            self._emit_progress("tool_completed", tool=name, result_preview=result_str[:200])
             return self._format_tool_payload(
                 tool=name,
                 status="ok",
@@ -329,6 +458,7 @@ class Agent:
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e}"
             log.error(f"Tool '{name}' failed: {error_msg}")
+            self._emit_progress("tool_failed", tool=name, error=error_msg)
             return self._format_tool_payload(
                 tool=name,
                 status="error",
@@ -373,11 +503,19 @@ class Agent:
         """Build the message list with system prompt + conversation history."""
         system_prompt = self.personality.to_system_prompt()
 
+        task_prompt = self._task_prompt_block()
+        if task_prompt:
+            system_prompt += "\n" + task_prompt
+
         # Inject skill Tier 1 summaries into system prompt
         if self.skill_loader:
             tier1 = self.skill_loader.tier1_block()
             if tier1:
                 system_prompt += "\n" + tier1
+
+        policy_prompt = self._command_policy_prompt_block()
+        if policy_prompt:
+            system_prompt += "\n" + policy_prompt
 
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(self.history)
@@ -394,6 +532,42 @@ class Agent:
                     })
 
         return messages
+
+    def _task_prompt_block(self) -> str:
+        try:
+            from .tasks import _get_board
+
+            items = _get_board().list()
+        except Exception:
+            return ""
+
+        lines = [
+            "\n## Task Tracking",
+            "For multi-step work, use task_upsert to track progress instead of keeping the plan only in prose.",
+        ]
+        if not items:
+            lines.append("No tracked tasks yet.")
+            return "\n".join(lines)
+
+        lines.append("Current tracked tasks:")
+        for item in items[:8]:
+            suffix = f" :: {item.details}" if item.details else ""
+            lines.append(f"- {item.id} [{item.status}] {item.subject}{suffix}")
+        if len(items) > 8:
+            lines.append(f"- ... and {len(items) - 8} more")
+        return "\n".join(lines)
+
+    def _command_policy_prompt_block(self) -> str:
+        allowed = self.command_policy.get("allowed_prefixes") or []
+        denied = self.command_policy.get("denied_prefixes") or []
+        if not allowed and not denied:
+            return ""
+        lines = ["\n## Command Policy", "Terminal tools are subject to these command constraints:"]
+        if allowed:
+            lines.append(f"- Allowed prefixes: {', '.join(allowed)}")
+        if denied:
+            lines.append(f"- Denied prefixes: {', '.join(denied)}")
+        return "\n".join(lines)
 
     def _format_assistant_tool_message(self, response: LLMResponse) -> Dict[str, Any]:
         """Format an assistant message that contains tool calls."""
@@ -484,6 +658,59 @@ class Agent:
                 )
         except Exception as exc:
             log.debug(f"Synthesis error (non-fatal): {exc}")
+
+    def _maybe_start_auto_task(self, message: str) -> str:
+        if not self.auto_track_tasks:
+            return ""
+        text = (message or "").strip()
+        if len(text.split()) < 4:
+            return ""
+        try:
+            from .tasks import task_upsert
+
+            result = task_upsert(
+                subject=text[:120],
+                status="in_progress",
+                details="Auto-tracked from agent request",
+            )
+            return result.split()[1] if result.startswith("Task ") else ""
+        except Exception:
+            return ""
+
+    def _finish_auto_task(self, task_id: str, status: str, result: str):
+        if not self.auto_track_tasks or not task_id:
+            return
+        try:
+            from .tasks import task_upsert
+
+            task_upsert(
+                subject="",
+                task_id=task_id,
+                status=status,
+                details=(result or "")[:240],
+            )
+        except Exception:
+            pass
+
+    def _emit_progress(self, event_type: str, **payload):
+        if not self.progress_callback:
+            return
+        try:
+            event = {"type": event_type, **payload}
+            self.progress_callback(event)
+        except Exception:
+            pass
+
+    def _ensure_can_continue(self):
+        if not self.should_continue_callback:
+            return
+        try:
+            allowed = self.should_continue_callback()
+        except Exception:
+            allowed = True
+        if not allowed:
+            self._emit_progress("request_cancelled")
+            raise AgentExecutionCancelled("Agent execution was cancelled.")
 
     def clear_history(self):
         """Reset conversation history."""

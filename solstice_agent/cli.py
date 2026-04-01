@@ -131,6 +131,75 @@ def main():
     parser.add_argument("--image", "-i", action="append", help="Image path for multimodal (can repeat)")
     parser.add_argument("--continue", dest="continue_session", action="store_true", help="Resume last conversation")
     parser.add_argument("--no-stream", action="store_true", help="Disable streaming (wait for full response)")
+    parser.add_argument("--tasks", action="store_true", help="Print tracked tasks and exit")
+    parser.add_argument("--clear-tasks", action="store_true", help="Clear tracked tasks and exit")
+    parser.add_argument("--subagents", action="store_true", help="Print sub-agent runs and exit")
+    parser.add_argument("--workflows", action="store_true", help="Print workflows and exit")
+    parser.add_argument("--workflow-status", help="Print a workflow status by workflow ID and exit")
+    parser.add_argument("--workflow-events", help="Print recent workflow events by workflow ID and exit")
+    parser.add_argument("--workflow-export", nargs="+", metavar="WORKFLOW_ARG", help="Export a workflow or snapshot as JSON and exit")
+    parser.add_argument("--workflow-snapshot", nargs="+", metavar="WORKFLOW_ARG", help="Create a workflow snapshot and exit")
+    parser.add_argument("--resume-workflow", help="Resume a workflow by workflow ID and exit")
+    parser.add_argument("--cancel-workflow", help="Cancel a workflow by workflow ID and exit")
+    parser.add_argument(
+        "--retry-workflow-branch",
+        nargs=2,
+        metavar=("WORKFLOW_ID", "NODE_ID"),
+        help="Retry a failed workflow branch rooted at a node and exit",
+    )
+    parser.add_argument(
+        "--disable-workflow-node",
+        nargs=2,
+        metavar=("WORKFLOW_ID", "NODE_ID"),
+        help="Disable a pending workflow node and exit",
+    )
+    parser.add_argument(
+        "--enable-workflow-node",
+        nargs=2,
+        metavar=("WORKFLOW_ID", "NODE_ID"),
+        help="Enable a disabled workflow node and exit",
+    )
+    parser.add_argument(
+        "--remove-workflow-node",
+        nargs=2,
+        metavar=("WORKFLOW_ID", "NODE_ID"),
+        help="Remove a pending workflow node and exit",
+    )
+    parser.add_argument(
+        "--rewire-workflow",
+        nargs="+",
+        metavar="WORKFLOW_ARG",
+        help="Add or remove a workflow dependency edge and exit",
+    )
+    parser.add_argument(
+        "--retry-workflow-node",
+        nargs=2,
+        metavar=("WORKFLOW_ID", "NODE_ID"),
+        help="Retry a workflow node and exit",
+    )
+    parser.add_argument(
+        "--set-workflow-priority",
+        nargs=3,
+        metavar=("WORKFLOW_ID", "NODE_ID", "PRIORITY"),
+        help="Set a workflow node priority and exit",
+    )
+    parser.add_argument(
+        "--set-workflow-edge",
+        nargs=4,
+        metavar=("WORKFLOW_ID", "NODE_ID", "DEPENDENCY_NODE_ID", "POLICY"),
+        help="Update a workflow edge policy and exit",
+    )
+    parser.add_argument(
+        "--add-workflow-node",
+        nargs=3,
+        metavar=("WORKFLOW_ID", "NODE_ID", "PROMPT"),
+        help="Add a workflow node with the given prompt and exit",
+    )
+    parser.add_argument("--subagent-graph", nargs="?", const="", help="Print sub-agent graph data and exit")
+    parser.add_argument("--subagent-result", help="Print a sub-agent result by run ID and exit")
+    parser.add_argument("--subagent-progress", help="Print sub-agent progress by run ID and exit")
+    parser.add_argument("--resume-subagent", help="Resume a saved sub-agent run by run ID and exit")
+    parser.add_argument("--cancel-subagent", help="Request cancellation for a sub-agent run and exit")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show debug logs")
     parser.add_argument("--setup", action="store_true", help="Run interactive setup wizard")
     parser.add_argument("--outreach-load-seeds", nargs=2, metavar=("CAMPAIGN_JSON", "LEADS_JSON"),
@@ -447,6 +516,7 @@ def main():
             temperature=config.temperature,
             skill_loader=skill_loader, compactor=compactor,
         )
+        agent.auto_track_tasks = True
 
         # Register tools
         if not args.no_tools:
@@ -470,6 +540,211 @@ def main():
             )
             registry.load_builtins(**cli_flags)
             registry.apply(agent)
+    if hasattr(agent, "auto_track_tasks"):
+        agent.auto_track_tasks = True
+
+    if args.tasks:
+        from .agent.tasks import task_list
+        print(task_list())
+        return
+
+    if args.clear_tasks:
+        from .agent.tasks import task_clear
+        print(task_clear())
+        return
+
+    if args.subagents:
+        if "subagent_list" in getattr(agent, "_tools", {}):
+            print(agent._tools["subagent_list"]())
+        else:
+            print("Sub-agent tools are not available.")
+        return
+
+    if args.workflows:
+        if "workflow_list" in getattr(agent, "_tools", {}):
+            print(agent._tools["workflow_list"]())
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.workflow_status:
+        if "workflow_status" in getattr(agent, "_tools", {}):
+            print(agent._tools["workflow_status"](args.workflow_status))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.workflow_events:
+        if "workflow_events" in getattr(agent, "_tools", {}):
+            print(agent._tools["workflow_events"](args.workflow_events))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.workflow_export:
+        if "workflow_export" in getattr(agent, "_tools", {}):
+            workflow_id = args.workflow_export[0]
+            snapshot_id = args.workflow_export[1] if len(args.workflow_export) > 1 else ""
+            print(agent._tools["workflow_export"](workflow_id, snapshot_id))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.workflow_snapshot:
+        if "workflow_snapshot" in getattr(agent, "_tools", {}):
+            workflow_id = args.workflow_snapshot[0]
+            label = " ".join(args.workflow_snapshot[1:]) if len(args.workflow_snapshot) > 1 else ""
+            print(agent._tools["workflow_snapshot"](workflow_id, label))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.resume_workflow:
+        if "workflow_resume" in getattr(agent, "_tools", {}):
+            print(agent._tools["workflow_resume"](args.resume_workflow))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.cancel_workflow:
+        if "workflow_cancel" in getattr(agent, "_tools", {}):
+            print(agent._tools["workflow_cancel"](args.cancel_workflow))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.retry_workflow_branch:
+        if "workflow_retry_branch" in getattr(agent, "_tools", {}):
+            workflow_id, node_id = args.retry_workflow_branch
+            print(agent._tools["workflow_retry_branch"](workflow_id, node_id))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.disable_workflow_node:
+        if "workflow_disable_node" in getattr(agent, "_tools", {}):
+            workflow_id, node_id = args.disable_workflow_node
+            print(agent._tools["workflow_disable_node"](workflow_id, node_id))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.enable_workflow_node:
+        if "workflow_enable_node" in getattr(agent, "_tools", {}):
+            workflow_id, node_id = args.enable_workflow_node
+            print(agent._tools["workflow_enable_node"](workflow_id, node_id))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.remove_workflow_node:
+        if "workflow_remove_node" in getattr(agent, "_tools", {}):
+            workflow_id, node_id = args.remove_workflow_node
+            print(agent._tools["workflow_remove_node"](workflow_id, node_id))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.rewire_workflow:
+        if "workflow_rewire_dependency" in getattr(agent, "_tools", {}):
+            if len(args.rewire_workflow) < 4:
+                print("Usage: --rewire-workflow <workflow_id> <node_id> <dependency_node_id> <action> [policy]")
+            else:
+                workflow_id, node_id, dependency_node_id, action = args.rewire_workflow[:4]
+                policy = args.rewire_workflow[4] if len(args.rewire_workflow) > 4 else "block"
+                print(agent._tools["workflow_rewire_dependency"](workflow_id, node_id, dependency_node_id, action, policy))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.retry_workflow_node:
+        if "workflow_retry_node" in getattr(agent, "_tools", {}):
+            workflow_id, node_id = args.retry_workflow_node
+            print(agent._tools["workflow_retry_node"](workflow_id, node_id))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.set_workflow_priority:
+        if "workflow_set_priority" in getattr(agent, "_tools", {}):
+            workflow_id, node_id, priority_text = args.set_workflow_priority
+            print(agent._tools["workflow_set_priority"](workflow_id, node_id, int(priority_text)))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.set_workflow_edge:
+        if "workflow_update_edge_policy" in getattr(agent, "_tools", {}):
+            workflow_id, node_id, dependency_node_id, policy = args.set_workflow_edge
+            print(agent._tools["workflow_update_edge_policy"](workflow_id, node_id, dependency_node_id, policy))
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.add_workflow_node:
+        if "workflow_add_node" in getattr(agent, "_tools", {}):
+            workflow_id, node_id, prompt = args.add_workflow_node
+            print(
+                agent._tools["workflow_add_node"](
+                    workflow_id,
+                    node_id,
+                    prompt,
+                    [],
+                    "{}",
+                    [],
+                    "",
+                    False,
+                    True,
+                    None,
+                    None,
+                    None,
+                    None,
+                    "",
+                    None,
+                    "",
+                    0,
+                    "never",
+                    0,
+                )
+            )
+        else:
+            print("Workflow tools are not available.")
+        return
+
+    if args.subagent_graph is not None:
+        if "subagent_graph" in getattr(agent, "_tools", {}):
+            print(agent._tools["subagent_graph"](args.subagent_graph or ""))
+        else:
+            print("Sub-agent tools are not available.")
+        return
+
+    if args.subagent_result:
+        if "subagent_result" in getattr(agent, "_tools", {}):
+            print(agent._tools["subagent_result"](args.subagent_result))
+        else:
+            print("Sub-agent tools are not available.")
+        return
+
+    if args.subagent_progress:
+        if "subagent_progress" in getattr(agent, "_tools", {}):
+            print(agent._tools["subagent_progress"](args.subagent_progress))
+        else:
+            print("Sub-agent tools are not available.")
+        return
+
+    if args.resume_subagent:
+        if "resume_subagent" in getattr(agent, "_tools", {}):
+            print(agent._tools["resume_subagent"](args.resume_subagent))
+        else:
+            print("Sub-agent tools are not available.")
+        return
+
+    if args.cancel_subagent:
+        if "cancel_subagent" in getattr(agent, "_tools", {}):
+            print(agent._tools["cancel_subagent"](args.cancel_subagent))
+        else:
+            print("Sub-agent tools are not available.")
+        return
 
     # Scheduler
     if not args.no_cron:
@@ -596,7 +871,13 @@ def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, st
     tool_names = [s['name'] for s in agent._tool_schemas] if agent._tool_schemas else ['none']
     streaming_label = "on" if stream else "off"
     print(f"  {DIM}Tools: {len(tool_names)} loaded | Streaming: {streaming_label}{RESET}")
-    print(f"  {DIM}Type 'exit' to quit, 'clear' to reset, 'tools' to list{RESET}\n")
+    print(
+        f"  {DIM}Type 'exit' to quit, 'clear' to reset, 'tools' to list, '/tasks', '/subagents', '/workflows', "
+        f"'/workflow <id>', '/workflow-events <id>', '/workflow-export <workflow_id> [snapshot_id]', '/workflow-snapshot <workflow_id> [label]', '/add-workflow-node <workflow_id> <node_id> <prompt>', '/retry-workflow-node <workflow_id> <node_id>', '/retry-workflow-branch <workflow_id> <node_id>', "
+        f"'/disable-workflow-node <workflow_id> <node_id>', '/enable-workflow-node <workflow_id> <node_id>', '/remove-workflow-node <workflow_id> <node_id>', '/rewire-workflow <workflow_id> <node_id> <dependency_node_id> <action> [policy]', "
+        f"'/set-workflow-priority <workflow_id> <node_id> <priority>', '/set-workflow-edge <workflow_id> <node_id> <dependency_node_id> <policy>', "
+        f"'/subagent-graph', '/subagent-progress <id>', '/resume-subagent <id>', or '/cancel-subagent <id>'{RESET}\n"
+    )
 
     while True:
         try:
@@ -633,6 +914,260 @@ def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, st
                 content = msg["content"]
                 if isinstance(content, str):
                     print(f"{DIM}[{role}]{RESET} {content[:100]}")
+            continue
+
+        if user_input.lower() == "/tasks":
+            from .agent.tasks import task_list
+            print(task_list())
+            continue
+
+        if user_input.lower() == "/clear-tasks":
+            from .agent.tasks import task_clear
+            print(task_clear())
+            continue
+
+        if user_input.lower() == "/subagents":
+            if "subagent_list" in getattr(agent, "_tools", {}):
+                print(agent._tools["subagent_list"]())
+            else:
+                print("Sub-agent tools are not available.")
+            continue
+
+        if user_input.lower() == "/workflows":
+            if "workflow_list" in getattr(agent, "_tools", {}):
+                print(agent._tools["workflow_list"]())
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/workflow "):
+            workflow_id = user_input.split(" ", 1)[1].strip()
+            if "workflow_status" in getattr(agent, "_tools", {}):
+                print(agent._tools["workflow_status"](workflow_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/workflow-events "):
+            workflow_id = user_input.split(" ", 1)[1].strip()
+            if "workflow_events" in getattr(agent, "_tools", {}):
+                print(agent._tools["workflow_events"](workflow_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/workflow-export "):
+            parts = user_input.split(" ", 2)
+            workflow_id = parts[1].strip() if len(parts) > 1 else ""
+            snapshot_id = parts[2].strip() if len(parts) > 2 else ""
+            if "workflow_export" in getattr(agent, "_tools", {}):
+                print(agent._tools["workflow_export"](workflow_id, snapshot_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/workflow-snapshot "):
+            parts = user_input.split(" ", 2)
+            workflow_id = parts[1].strip() if len(parts) > 1 else ""
+            label = parts[2].strip() if len(parts) > 2 else ""
+            if "workflow_snapshot" in getattr(agent, "_tools", {}):
+                print(agent._tools["workflow_snapshot"](workflow_id, label))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/resume-workflow "):
+            workflow_id = user_input.split(" ", 1)[1].strip()
+            if "workflow_resume" in getattr(agent, "_tools", {}):
+                print(agent._tools["workflow_resume"](workflow_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/cancel-workflow "):
+            workflow_id = user_input.split(" ", 1)[1].strip()
+            if "workflow_cancel" in getattr(agent, "_tools", {}):
+                print(agent._tools["workflow_cancel"](workflow_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/add-workflow-node "):
+            parts = user_input.split(" ", 3)
+            if len(parts) < 4:
+                print("Usage: /add-workflow-node <workflow_id> <node_id> <prompt>")
+                continue
+            if "workflow_add_node" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id, prompt = parts
+                print(
+                    agent._tools["workflow_add_node"](
+                        workflow_id,
+                        node_id,
+                        prompt,
+                        [],
+                        "{}",
+                        [],
+                        "",
+                        False,
+                        True,
+                        None,
+                        None,
+                        None,
+                        None,
+                        "",
+                        None,
+                        "",
+                        0,
+                        "never",
+                        0,
+                    )
+                )
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/retry-workflow-node "):
+            parts = user_input.split(" ", 2)
+            if len(parts) < 3:
+                print("Usage: /retry-workflow-node <workflow_id> <node_id>")
+                continue
+            if "workflow_retry_node" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id = parts
+                print(agent._tools["workflow_retry_node"](workflow_id, node_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/retry-workflow-branch "):
+            parts = user_input.split(" ", 2)
+            if len(parts) < 3:
+                print("Usage: /retry-workflow-branch <workflow_id> <node_id>")
+                continue
+            if "workflow_retry_branch" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id = parts
+                print(agent._tools["workflow_retry_branch"](workflow_id, node_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/disable-workflow-node "):
+            parts = user_input.split(" ", 2)
+            if len(parts) < 3:
+                print("Usage: /disable-workflow-node <workflow_id> <node_id>")
+                continue
+            if "workflow_disable_node" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id = parts
+                print(agent._tools["workflow_disable_node"](workflow_id, node_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/enable-workflow-node "):
+            parts = user_input.split(" ", 2)
+            if len(parts) < 3:
+                print("Usage: /enable-workflow-node <workflow_id> <node_id>")
+                continue
+            if "workflow_enable_node" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id = parts
+                print(agent._tools["workflow_enable_node"](workflow_id, node_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/remove-workflow-node "):
+            parts = user_input.split(" ", 2)
+            if len(parts) < 3:
+                print("Usage: /remove-workflow-node <workflow_id> <node_id>")
+                continue
+            if "workflow_remove_node" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id = parts
+                print(agent._tools["workflow_remove_node"](workflow_id, node_id))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/rewire-workflow "):
+            parts = user_input.split(" ")
+            if len(parts) < 5:
+                print("Usage: /rewire-workflow <workflow_id> <node_id> <dependency_node_id> <action> [policy]")
+                continue
+            if "workflow_rewire_dependency" in getattr(agent, "_tools", {}):
+                workflow_id, node_id, dependency_node_id, action = parts[1:5]
+                policy = parts[5] if len(parts) > 5 else "block"
+                print(agent._tools["workflow_rewire_dependency"](workflow_id, node_id, dependency_node_id, action, policy))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/set-workflow-priority "):
+            parts = user_input.split(" ", 3)
+            if len(parts) < 4:
+                print("Usage: /set-workflow-priority <workflow_id> <node_id> <priority>")
+                continue
+            if "workflow_set_priority" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id, priority_text = parts
+                print(agent._tools["workflow_set_priority"](workflow_id, node_id, int(priority_text)))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/set-workflow-edge "):
+            parts = user_input.split(" ", 4)
+            if len(parts) < 5:
+                print("Usage: /set-workflow-edge <workflow_id> <node_id> <dependency_node_id> <policy>")
+                continue
+            if "workflow_update_edge_policy" in getattr(agent, "_tools", {}):
+                _, workflow_id, node_id, dependency_node_id, policy = parts
+                print(agent._tools["workflow_update_edge_policy"](workflow_id, node_id, dependency_node_id, policy))
+            else:
+                print("Workflow tools are not available.")
+            continue
+
+        if user_input.lower() == "/subagent-graph":
+            if "subagent_graph" in getattr(agent, "_tools", {}):
+                print(agent._tools["subagent_graph"](""))
+            else:
+                print("Sub-agent tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/subagent-graph "):
+            run_id = user_input.split(" ", 1)[1].strip()
+            if "subagent_graph" in getattr(agent, "_tools", {}):
+                print(agent._tools["subagent_graph"](run_id))
+            else:
+                print("Sub-agent tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/subagent "):
+            run_id = user_input.split(" ", 1)[1].strip()
+            if "subagent_result" in getattr(agent, "_tools", {}):
+                print(agent._tools["subagent_result"](run_id))
+            else:
+                print("Sub-agent tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/subagent-progress "):
+            run_id = user_input.split(" ", 1)[1].strip()
+            if "subagent_progress" in getattr(agent, "_tools", {}):
+                print(agent._tools["subagent_progress"](run_id))
+            else:
+                print("Sub-agent tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/resume-subagent "):
+            run_id = user_input.split(" ", 1)[1].strip()
+            if "resume_subagent" in getattr(agent, "_tools", {}):
+                print(agent._tools["resume_subagent"](run_id))
+            else:
+                print("Sub-agent tools are not available.")
+            continue
+
+        if user_input.lower().startswith("/cancel-subagent "):
+            run_id = user_input.split(" ", 1)[1].strip()
+            if "cancel_subagent" in getattr(agent, "_tools", {}):
+                print(agent._tools["cancel_subagent"](run_id))
+            else:
+                print("Sub-agent tools are not available.")
             continue
 
         try:

@@ -7,9 +7,99 @@ everything else in the file. Way better than rewriting entire files.
 """
 
 import logging
+import shutil
+import subprocess
 from pathlib import Path
 
 log = logging.getLogger("solstice.tools.file_ops")
+
+_MAX_SCAN_BYTES = 10 * 1024 * 1024
+_CHUNK_SIZE = 8 * 1024
+
+
+def _read_with_line_numbers(text: str, start_line: int = 1, max_lines: int = 500) -> str:
+    lines = text.splitlines(keepends=True)
+    shown = lines[:max_lines]
+    result = "".join(
+        f"{start_line + i:>4} | {line}" for i, line in enumerate(shown)
+    )
+    if len(lines) > max_lines:
+        result += f"\n... ({len(lines) - max_lines} more lines truncated)"
+    return result
+
+
+def _find_context_window(path: Path, needle: str, context_lines: int = 3):
+    if not needle:
+        return 1, "", False
+
+    with open(path, "rb") as handle:
+        overlap = max(len(needle.encode("utf-8")) + needle.count("\n") - 1, 0)
+        buf = bytearray(_CHUNK_SIZE + overlap)
+        pos = 0
+        prev_tail = 0
+        needle_lf = needle.encode("utf-8")
+        needle_crlf = needle.replace("\n", "\r\n").encode("utf-8") if "\n" in needle else None
+
+        while pos < _MAX_SCAN_BYTES:
+            handle.seek(pos)
+            chunk = handle.read(_CHUNK_SIZE)
+            if not chunk:
+                break
+            view_len = prev_tail + len(chunk)
+            buf[prev_tail:view_len] = chunk
+            view = bytes(buf[:view_len])
+            match_at = view.find(needle_lf)
+            if match_at == -1 and needle_crlf is not None:
+                match_at = view.find(needle_crlf)
+            if match_at != -1:
+                with open(path, "r", encoding="utf-8", errors="replace") as text_handle:
+                    full = text_handle.read()
+                normalized = full.replace("\r\n", "\n")
+                normalized_needle = needle.replace("\r\n", "\n")
+                idx = normalized.find(normalized_needle)
+                if idx == -1:
+                    return 1, "", True
+                line_start = normalized[:idx].count("\n")
+                needle_line_count = normalized_needle.count("\n") + 1
+                lines = normalized.splitlines(keepends=True)
+                start_line = max(line_start - context_lines, 0)
+                end_line = min(line_start + needle_line_count + context_lines, len(lines))
+                content = "".join(lines[start_line:end_line])
+                return start_line + 1, content, False
+
+            next_tail = min(overlap, view_len)
+            if next_tail:
+                buf[:next_tail] = view[-next_tail:]
+            prev_tail = next_tail
+            pos += len(chunk)
+
+    return 1, "", pos >= _MAX_SCAN_BYTES
+
+
+def read_file_context(path: str, needle: str, context_lines: int = 3) -> str:
+    """Read a context window around a target string inside a file."""
+    from .security import validate_path
+
+    path_err = validate_path(path, "read")
+    if path_err:
+        return f"Error: {path_err}"
+
+    try:
+        p = Path(path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {path}"
+        if not p.is_file():
+            return f"Error: Not a file: {path}"
+
+        line_offset, content, truncated = _find_context_window(p, needle, context_lines=context_lines)
+        if content:
+            header = f"Context from {p.name} around match (starting at line {line_offset}):\n"
+            return header + _read_with_line_numbers(content, start_line=line_offset)
+        if truncated:
+            return f"Error: Match not found within {_MAX_SCAN_BYTES} bytes of {path}"
+        return f"Error: '{needle}' not found in {path}"
+    except Exception as e:
+        return f"Error reading context from {path}: {e}"
 
 
 def read_file(path: str, max_lines: int = 500) -> str:
@@ -32,15 +122,7 @@ def read_file(path: str, max_lines: int = 500) -> str:
         with open(p, 'r', encoding='utf-8', errors='replace') as f:
             lines = f.readlines()
 
-        if len(lines) > max_lines:
-            shown = lines[:max_lines]
-            result = "".join(
-                f"{i+1:>4} | {line}" for i, line in enumerate(shown)
-            )
-            result += f"\n... ({len(lines) - max_lines} more lines truncated)"
-            return result
-
-        return "".join(f"{i+1:>4} | {line}" for i, line in enumerate(lines))
+        return _read_with_line_numbers("".join(lines), start_line=1, max_lines=max_lines)
     except Exception as e:
         return f"Error reading {path}: {e}"
 
@@ -349,6 +431,20 @@ def grep_files(pattern: str, path: str = ".", glob: str = None, max_results: int
         if not root.exists():
             return f"Error: Path not found: {path}"
 
+        rg = shutil.which("rg")
+        if rg:
+            args = [rg, "-n", "-i", "--max-count", str(max_results), pattern]
+            if glob:
+                args.extend(["-g", glob])
+            args.append(str(root))
+            result = subprocess.run(args, capture_output=True, text=True, timeout=20, check=False)
+            if result.returncode in (0, 1):
+                lines = [line for line in result.stdout.splitlines() if line.strip()][:max_results]
+                if not lines:
+                    return f"No matches for /{pattern}/ in {path}"
+                header = f"{len(lines)} match{'es' if len(lines) != 1 else ''} for /{pattern}/:"
+                return header + "\n" + "\n".join(f"  {line}" for line in lines)
+
         results = []
         glob_pattern = glob or "**/*"
 
@@ -475,6 +571,25 @@ _SCHEMAS = {
             "required": ["path"],
         },
     },
+    "read_file_context": {
+        "name": "read_file_context",
+        "description": (
+            "Read a context window around a target string inside a file. "
+            "Useful for surgical edits when exact surrounding lines matter."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to the file"},
+                "needle": {"type": "string", "description": "Target text to center the context around"},
+                "context_lines": {
+                    "type": "integer",
+                    "description": "Lines of context before and after the match (default 3)",
+                },
+            },
+            "required": ["path", "needle"],
+        },
+    },
     "write_file": {
         "name": "write_file",
         "description": "Write content to a file. Creates directories if needed. Use for NEW files only — use edit_file for existing files.",
@@ -584,6 +699,7 @@ _SCHEMAS = {
 def register_file_tools(registry):
     """Register all file operation tools with a ToolRegistry."""
     registry.register("read_file", read_file, _SCHEMAS["read_file"])
+    registry.register("read_file_context", read_file_context, _SCHEMAS["read_file_context"])
     registry.register("write_file", write_file, _SCHEMAS["write_file"])
     registry.register("edit_file", edit_file, _SCHEMAS["edit_file"])
     registry.register("apply_patch", apply_patch, _SCHEMAS["apply_patch"])

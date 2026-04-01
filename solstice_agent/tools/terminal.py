@@ -16,6 +16,7 @@ import subprocess
 import logging
 import threading
 import time
+from contextlib import contextmanager
 from collections import deque
 from typing import Callable, Optional, Dict
 
@@ -91,6 +92,48 @@ _DANGEROUS_PATTERNS = [
 ]
 
 _DANGEROUS_RE = re.compile('|'.join(_DANGEROUS_PATTERNS), re.IGNORECASE)
+_DENIED_PREFIXES: list[str] = []
+_ALLOWED_PREFIXES: list[str] = []
+_POLICY_CONTEXT = threading.local()
+
+
+def set_command_policy(
+    denied_prefixes: Optional[list[str]] = None,
+    allowed_prefixes: Optional[list[str]] = None,
+):
+    """Set optional command policy prefixes checked before execution."""
+    global _DENIED_PREFIXES, _ALLOWED_PREFIXES
+    _DENIED_PREFIXES = [item.strip() for item in (denied_prefixes or []) if item.strip()]
+    _ALLOWED_PREFIXES = [item.strip() for item in (allowed_prefixes or []) if item.strip()]
+
+
+@contextmanager
+def command_policy_context(
+    denied_prefixes: Optional[list[str]] = None,
+    allowed_prefixes: Optional[list[str]] = None,
+):
+    """Apply a command policy for the current thread only."""
+    previous = getattr(_POLICY_CONTEXT, "policy", None)
+    _POLICY_CONTEXT.policy = {
+        "denied": [item.strip() for item in (denied_prefixes or []) if item.strip()],
+        "allowed": [item.strip() for item in (allowed_prefixes or []) if item.strip()],
+    }
+    try:
+        yield
+    finally:
+        _POLICY_CONTEXT.policy = previous
+
+
+def _active_command_policy() -> tuple[list[str], list[str]]:
+    policy = getattr(_POLICY_CONTEXT, "policy", None)
+    if policy is None:
+        return _DENIED_PREFIXES, _ALLOWED_PREFIXES
+    return policy.get("denied", []), policy.get("allowed", [])
+
+
+def split_command_segments(command: str) -> list[str]:
+    """Split a shell command on major control operators for per-segment checks."""
+    return [segment.strip() for segment in re.split(r"\s*(?:;|&&|\|\||\|)\s*", command) if segment.strip()]
 
 
 def _normalize_command(command: str) -> str:
@@ -158,11 +201,9 @@ def check_command_safety(command: str) -> Optional[str]:
 
     # Split on shell metacharacters and check each segment
     # This catches: "echo hi; rm -rf /", "cat file | bash", "safe && dangerous"
-    segments = re.split(r'\s*(?:;|&&|\|\||\|)\s*', command)
+    segments = split_command_segments(command)
+    denied_prefixes, allowed_prefixes = _active_command_policy()
     for segment in segments:
-        segment = segment.strip()
-        if not segment:
-            continue
         match = _DANGEROUS_RE.search(segment)
         if match:
             return f"Potentially destructive pattern in chained command: {match.group()}"
@@ -171,6 +212,22 @@ def check_command_safety(command: str) -> Optional[str]:
             match = _DANGEROUS_RE.search(norm_seg)
             if match:
                 return f"Potentially destructive pattern in chained command (obfuscated): {match.group()}"
+
+        lowered = segment.lower()
+        for denied in denied_prefixes:
+            prefix = denied.lower()
+            if lowered == prefix or lowered.startswith(prefix + " "):
+                return f"Command policy blocks prefix: {denied}"
+
+        if allowed_prefixes:
+            allowed = False
+            for prefix in allowed_prefixes:
+                normalized_prefix = prefix.lower()
+                if lowered == normalized_prefix or lowered.startswith(normalized_prefix + " "):
+                    allowed = True
+                    break
+            if not allowed:
+                return "Command policy blocks commands outside the allowed prefix list."
 
     # Check for $() and backtick command substitution containing dangerous patterns
     subcommands = re.findall(r'\$\((.+?)\)', command) + re.findall(r'`(.+?)`', command)

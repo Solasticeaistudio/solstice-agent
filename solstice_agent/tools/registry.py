@@ -32,6 +32,15 @@ class ToolRegistry:
         self._schemas[name] = schema
         log.debug(f"Tool registered: {name}")
 
+    def export_bundle(self, tool_names: List[str] | None = None) -> Dict[str, tuple]:
+        """Export registered tools as {name: (handler, schema)}."""
+        names = tool_names or list(self._handlers.keys())
+        return {
+            name: (self._handlers[name], self._schemas[name])
+            for name in names
+            if name in self._handlers
+        }
+
     def load_builtins(
         self,
         enable_terminal: bool = True,
@@ -88,6 +97,9 @@ class ToolRegistry:
 
         if enable_skills:
             register_skill_tools(self)
+
+        from ..agent.tasks import register_task_tools
+        register_task_tools(self)
 
         if enable_cron:
             register_cron_tools(self)
@@ -161,6 +173,11 @@ class ToolRegistry:
         """Register all tools with an Agent instance."""
         for name, handler in self._handlers.items():
             agent.register_tool(name, handler, self._schemas[name])
+        try:
+            from ..agent.subagents import register_subagent_tools
+            register_subagent_tools(agent)
+        except Exception as exc:
+            log.debug(f"Sub-agent tools not registered: {exc}")
 
     def list_tools(self) -> List[str]:
         """Get names of all registered tools."""

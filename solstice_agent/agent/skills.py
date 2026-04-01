@@ -15,9 +15,10 @@ Storage:
 
 import logging
 import re
+from fnmatch import fnmatch
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("solstice.skills")
 
@@ -30,7 +31,15 @@ class Skill:
     name: str
     description: str
     tools: List[str] = field(default_factory=list)
+    allowed_tools: List[str] = field(default_factory=list)
     trigger: str = ""
+    when_to_use: str = ""
+    model: str = ""
+    effort: str = ""
+    paths: List[str] = field(default_factory=list)
+    argument_hint: str = ""
+    argument_names: List[str] = field(default_factory=list)
+    execution_context: str = ""
     tier2_content: str = ""
     tier3_content: str = ""
     source_path: str = ""
@@ -67,7 +76,13 @@ class SkillLoader:
         for skills_dir in self._dirs:
             if not skills_dir.exists():
                 continue
-            for md_file in sorted(skills_dir.glob("*.md")):
+            candidates = sorted(skills_dir.glob("*.md")) + sorted(skills_dir.glob("**/SKILL.md"))
+            seen = set()
+            for md_file in candidates:
+                resolved = str(md_file.resolve())
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
                 try:
                     skill = self._parse_skill(md_file)
                     if skill:
@@ -96,14 +111,9 @@ class SkillLoader:
         if not name or not description:
             return None
 
-        # Parse tools list
-        tools_raw = fm.get("tools", "")
-        tools = []
-        if tools_raw:
-            tools_raw = tools_raw.strip().strip("[]")
-            tools = [t.strip() for t in tools_raw.split(",") if t.strip()]
-
-        trigger = fm.get("trigger", "")
+        tools = self._parse_list_field(fm.get("tools"))
+        allowed_tools = self._parse_list_field(fm.get("allowed_tools") or fm.get("allowed-tools"))
+        trigger = str(fm.get("trigger", ""))
 
         # Split at tier3 marker
         tier3_marker = "<!-- tier3 -->"
@@ -119,21 +129,43 @@ class SkillLoader:
             name=name,
             description=description,
             tools=tools,
+            allowed_tools=allowed_tools,
             trigger=trigger,
+            when_to_use=str(fm.get("when_to_use") or fm.get("when-to-use") or ""),
+            model=str(fm.get("model", "")),
+            effort=str(fm.get("effort", "")),
+            paths=self._parse_list_field(fm.get("paths")),
+            argument_hint=str(fm.get("argument_hint") or fm.get("argument-hint") or ""),
+            argument_names=self._parse_list_field(fm.get("arguments")),
+            execution_context=str(fm.get("context", "")),
             tier2_content=tier2_content,
             tier3_content=tier3_content,
             source_path=str(path),
         )
 
-    def _parse_frontmatter(self, text: str) -> Dict[str, str]:
+    def _parse_frontmatter(self, text: str) -> Dict[str, Any]:
         """Simple YAML-like frontmatter parser (no PyYAML needed)."""
         result = {}
         for line in text.strip().split("\n"):
             line = line.strip()
             if ":" in line:
                 key, _, value = line.partition(":")
-                result[key.strip()] = value.strip().strip('"').strip("'")
+                parsed = value.strip().strip('"').strip("'")
+                if parsed.startswith("[") and parsed.endswith("]"):
+                    parsed = [
+                        item.strip().strip('"').strip("'")
+                        for item in parsed[1:-1].split(",")
+                        if item.strip()
+                    ]
+                result[key.strip()] = parsed
         return result
+
+    def _parse_list_field(self, value: Any) -> List[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return [item.strip() for item in str(value).split(",") if item.strip()]
 
     def get_skill(self, name: str) -> Optional[Skill]:
         return self._skills.get(name)
@@ -153,6 +185,26 @@ class SkillLoader:
         for skill in self._skills.values():
             lines.append(skill.tier1_summary())
         return "\n".join(lines)
+
+    def skills_for_path(self, target_path: str) -> List[Skill]:
+        """Return path-scoped skills plus global skills."""
+        normalized = str(target_path).replace("\\", "/")
+        matched: List[Skill] = []
+        for skill in self._skills.values():
+            if not skill.paths:
+                matched.append(skill)
+                continue
+            for pattern in skill.paths:
+                normalized_pattern = pattern.replace("\\", "/").rstrip("/")
+                if not normalized_pattern:
+                    continue
+                glob_pattern = normalized_pattern
+                if "*" not in glob_pattern and "?" not in glob_pattern:
+                    glob_pattern = f"{glob_pattern}/**"
+                if fnmatch(normalized, glob_pattern) or fnmatch(normalized, normalized_pattern):
+                    matched.append(skill)
+                    break
+        return matched
 
     def match_triggers(self, user_message: str) -> List[str]:
         """Check user message against skill trigger patterns."""
@@ -218,7 +270,15 @@ def skill_list() -> str:
     lines = [f"Available skills ({len(skills)}):"]
     for s in skills:
         tools_str = f" (tools: {', '.join(s.tools)})" if s.tools else ""
-        lines.append(f"  {s.name}: {s.description}{tools_str}")
+        extras = []
+        if s.allowed_tools:
+            extras.append(f"allowed={', '.join(s.allowed_tools)}")
+        if s.paths:
+            extras.append(f"paths={', '.join(s.paths)}")
+        if s.when_to_use:
+            extras.append(f"when={s.when_to_use}")
+        suffix = f" [{' | '.join(extras)}]" if extras else ""
+        lines.append(f"  {s.name}: {s.description}{tools_str}{suffix}")
     return "\n".join(lines)
 
 

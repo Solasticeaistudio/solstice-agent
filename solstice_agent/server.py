@@ -16,11 +16,12 @@ Security:
 
 import argparse
 import functools
+import json
 import logging
 import os
 import secrets
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 
 from .config import Config, RUNTIME_PROFILE_NAMES
 from .agent.core import Agent
@@ -106,6 +107,7 @@ def _get_pool():
             p = config.create_provider()
             a = Agent(provider=p, personality=DEFAULT,
                       temperature=config.temperature)
+            a.auto_track_tasks = True
             r = ToolRegistry()
             flags = _server_tool_flags(config)
             flags["enable_cron"] = False
@@ -163,6 +165,7 @@ def _get_agent() -> Agent:
             temperature=config.temperature,
             skill_loader=skill_loader, compactor=compactor,
         )
+        _agent.auto_track_tasks = True
 
         registry = ToolRegistry()
         registry.load_builtins(**_server_tool_flags(config))
@@ -176,6 +179,7 @@ def _get_agent() -> Agent:
                 p = config.create_provider()
                 a = Agent(provider=p, personality=DEFAULT,
                           temperature=config.temperature, skill_loader=skill_loader)
+                a.auto_track_tasks = True
                 r = ToolRegistry()
                 flags = _server_tool_flags(config)
                 flags["enable_cron"] = False
@@ -240,6 +244,353 @@ def agents():
 def health():
     """Health check. Returns minimal info (no internal state leakage)."""
     return jsonify({"status": "ok"})
+
+
+@app.route("/tasks", methods=["GET", "DELETE"])
+@_require_auth
+def tasks():
+    from .agent.tasks import task_list, task_clear
+
+    if request.method == "DELETE":
+        return jsonify({"result": task_clear()})
+    return jsonify({"result": task_list(request.args.get("status", ""))})
+
+
+@app.route("/subagents", methods=["GET"])
+@_require_auth
+def subagents():
+    agent = _get_agent()
+    if "subagent_list" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["subagent_list"]()})
+
+
+@app.route("/subagents/graph", methods=["GET"])
+@_require_auth
+def subagent_graph():
+    agent = _get_agent()
+    if "subagent_graph" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["subagent_graph"](request.args.get("run_id", ""))})
+
+
+@app.route("/subagents/workflows", methods=["POST"])
+@_require_auth
+def submit_subagent_workflow():
+    agent = _get_agent()
+    if "submit_workflow" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+    payload = request.get_json(silent=True) or {}
+    return jsonify(
+        {
+            "result": agent._tools["submit_workflow"](
+                payload.get("workflow_json", ""),
+                payload.get("workflow_name", ""),
+            )
+        }
+    )
+
+
+@app.route("/workflows", methods=["GET"])
+@_require_auth
+def workflows():
+    agent = _get_agent()
+    if "workflow_list" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_list"]()})
+
+
+@app.route("/workflows/<workflow_id>", methods=["GET"])
+@_require_auth
+def workflow_status(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_status" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_status"](workflow_id)})
+
+
+@app.route("/workflows/<workflow_id>/events", methods=["GET"])
+@_require_auth
+def workflow_events(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_events" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+
+    from .agent.subagents import _get_manager
+
+    manager = _get_manager()
+    watcher = manager.subscribe_workflow(workflow_id)
+
+    @stream_with_context
+    def generate():
+        try:
+            while True:
+                try:
+                    event = watcher.get(timeout=15)
+                    payload = json.dumps(event)
+                    yield f"event: workflow\ndata: {payload}\n\n"
+                except queue.Empty:
+                    yield ": keep-alive\n\n"
+        finally:
+            manager.unsubscribe_workflow(workflow_id, watcher)
+
+    import queue
+    return Response(generate(), mimetype="text/event-stream")
+
+
+@app.route("/workflows/<workflow_id>/cancel", methods=["POST"])
+@_require_auth
+def workflow_cancel(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_cancel" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_cancel"](workflow_id)})
+
+
+@app.route("/workflows/<workflow_id>/resume", methods=["POST"])
+@_require_auth
+def workflow_resume(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_resume" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_resume"](workflow_id)})
+
+
+@app.route("/workflows/<workflow_id>/nodes/<node_id>/disable", methods=["POST"])
+@_require_auth
+def workflow_disable_node(workflow_id: str, node_id: str):
+    agent = _get_agent()
+    if "workflow_disable_node" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_disable_node"](workflow_id, node_id)})
+
+
+@app.route("/workflows/<workflow_id>/nodes/<node_id>/enable", methods=["POST"])
+@_require_auth
+def workflow_enable_node(workflow_id: str, node_id: str):
+    agent = _get_agent()
+    if "workflow_enable_node" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_enable_node"](workflow_id, node_id)})
+
+
+@app.route("/workflows/<workflow_id>/nodes/<node_id>", methods=["DELETE"])
+@_require_auth
+def workflow_remove_node(workflow_id: str, node_id: str):
+    agent = _get_agent()
+    if "workflow_remove_node" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_remove_node"](workflow_id, node_id)})
+
+
+@app.route("/workflows/<workflow_id>/nodes/<node_id>/retry-branch", methods=["POST"])
+@_require_auth
+def workflow_retry_branch(workflow_id: str, node_id: str):
+    agent = _get_agent()
+    if "workflow_retry_branch" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_retry_branch"](workflow_id, node_id)})
+
+
+@app.route("/workflows/<workflow_id>/snapshot", methods=["POST"])
+@_require_auth
+def workflow_snapshot(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_snapshot" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    payload = request.get_json(silent=True) or {}
+    return jsonify({"result": agent._tools["workflow_snapshot"](workflow_id, payload.get("label", ""))})
+
+
+@app.route("/workflows/<workflow_id>/export", methods=["GET"])
+@_require_auth
+def workflow_export(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_export" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    snapshot_id = request.args.get("snapshot_id", "")
+    return jsonify({"result": agent._tools["workflow_export"](workflow_id, snapshot_id)})
+
+
+@app.route("/workflows/<workflow_id>/nodes", methods=["POST"])
+@_require_auth
+def workflow_add_node(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_add_node" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    payload = request.get_json(silent=True) or {}
+    return jsonify(
+        {
+            "result": agent._tools["workflow_add_node"](
+                workflow_id,
+                payload.get("node_id", ""),
+                payload.get("prompt", ""),
+                payload.get("depends_on_node_ids"),
+                payload.get("dependency_policies_json", ""),
+                payload.get("tools"),
+                payload.get("extra_instructions", ""),
+                payload.get("include_parent_history", False),
+                payload.get("async_mode", True),
+                payload.get("allowed_command_prefixes"),
+                payload.get("denied_command_prefixes"),
+                payload.get("workspace_root"),
+                payload.get("workspace_required"),
+                payload.get("model_override", ""),
+                payload.get("max_tool_iterations"),
+                payload.get("task_subject", ""),
+                payload.get("priority", 0),
+                payload.get("retry_policy", "never"),
+                payload.get("max_retries", 0),
+            )
+        }
+    )
+
+
+@app.route("/workflows/<workflow_id>/nodes/<node_id>/retry", methods=["POST"])
+@_require_auth
+def workflow_retry_node(workflow_id: str, node_id: str):
+    agent = _get_agent()
+    if "workflow_retry_node" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["workflow_retry_node"](workflow_id, node_id)})
+
+
+@app.route("/workflows/<workflow_id>/nodes/<node_id>/priority", methods=["POST"])
+@_require_auth
+def workflow_set_priority(workflow_id: str, node_id: str):
+    agent = _get_agent()
+    if "workflow_set_priority" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    payload = request.get_json(silent=True) or {}
+    return jsonify({"result": agent._tools["workflow_set_priority"](workflow_id, node_id, payload.get("priority", 0))})
+
+
+@app.route("/workflows/<workflow_id>/edges", methods=["POST"])
+@_require_auth
+def workflow_update_edge_policy(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_update_edge_policy" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    payload = request.get_json(silent=True) or {}
+    return jsonify(
+        {
+            "result": agent._tools["workflow_update_edge_policy"](
+                workflow_id,
+                payload.get("node_id", ""),
+                payload.get("dependency_node_id", ""),
+                payload.get("policy", ""),
+            )
+        }
+    )
+
+
+@app.route("/workflows/<workflow_id>/rewire", methods=["POST"])
+@_require_auth
+def workflow_rewire_dependency(workflow_id: str):
+    agent = _get_agent()
+    if "workflow_rewire_dependency" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Workflow tools are unavailable."}), 400
+    payload = request.get_json(silent=True) or {}
+    return jsonify(
+        {
+            "result": agent._tools["workflow_rewire_dependency"](
+                workflow_id,
+                payload.get("node_id", ""),
+                payload.get("dependency_node_id", ""),
+                payload.get("action", ""),
+                payload.get("policy", "block"),
+            )
+        }
+    )
+
+
+@app.route("/subagents/<run_id>", methods=["GET"])
+@_require_auth
+def subagent_result(run_id: str):
+    agent = _get_agent()
+    if "subagent_result" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+    return jsonify(
+        {
+            "status": agent._tools["subagent_status"](run_id),
+            "result": agent._tools["subagent_result"](run_id),
+        }
+    )
+
+
+@app.route("/subagents/<run_id>/resume", methods=["POST"])
+@_require_auth
+def resume_subagent(run_id: str):
+    agent = _get_agent()
+    if "resume_subagent" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+    payload = request.get_json(silent=True) or {}
+    return jsonify(
+        {
+            "result": agent._tools["resume_subagent"](
+                run_id,
+                payload.get("async_mode", True),
+                payload.get("task_subject", ""),
+            )
+        }
+    )
+
+
+@app.route("/subagents/<run_id>/cancel", methods=["POST"])
+@_require_auth
+def cancel_subagent(run_id: str):
+    agent = _get_agent()
+    if "cancel_subagent" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+    return jsonify({"result": agent._tools["cancel_subagent"](run_id)})
+
+
+@app.route("/subagents/<run_id>/progress", methods=["GET"])
+@_require_auth
+def subagent_progress(run_id: str):
+    agent = _get_agent()
+    if "subagent_progress" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+    return jsonify({"progress": agent._tools["subagent_progress"](run_id)})
+
+
+@app.route("/subagents/<run_id>/events", methods=["GET"])
+@_require_auth
+def subagent_events(run_id: str):
+    agent = _get_agent()
+    if "subagent_progress" not in getattr(agent, "_tools", {}):
+        return jsonify({"error": "Sub-agent tools are unavailable."}), 400
+
+    from .agent.subagents import _get_manager
+
+    manager = _get_manager()
+    watcher = manager.subscribe(run_id)
+
+    @stream_with_context
+    def generate():
+        try:
+            while True:
+                try:
+                    event = watcher.get(timeout=15)
+                    payload = json.dumps({"run_id": run_id, **event})
+                    yield f"event: progress\ndata: {payload}\n\n"
+                    run = manager.get(run_id)
+                    if run and run.status in {"completed", "failed", "interrupted", "cancelled"} and run.events and run.events[-1] == event:
+                        final_payload = json.dumps({"run_id": run_id, "status": run.status, "aggregate_status": run.aggregate_status})
+                        yield f"event: done\ndata: {final_payload}\n\n"
+                        break
+                except queue.Empty:
+                    yield ": keep-alive\n\n"
+                    run = manager.get(run_id)
+                    if run and run.status in {"completed", "failed", "interrupted", "cancelled"}:
+                        final_payload = json.dumps({"run_id": run_id, "status": run.status, "aggregate_status": run.aggregate_status})
+                        yield f"event: done\ndata: {final_payload}\n\n"
+                        break
+        finally:
+            manager.unsubscribe(run_id, watcher)
+
+    import queue
+    return Response(generate(), mimetype="text/event-stream")
 
 
 def main():
