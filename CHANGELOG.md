@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.11] - 2026-04-01
+
+### Added
+- Shared onboarding helpers so CLI and gateway quick-start flows stay aligned
+- Guided `/start` onboarding for gateway and webchat, including first-reply interpretation after the menu is shown
+
+### Changed
+- Provider credentials from environment variables now fill the selected provider instead of silently switching providers
+- Setup wizard uses simpler, plain-English provider and runtime choices with starter prompts at the end
+- CLI first-run flow is safer by default, auto-starts with guided onboarding, and understands broader natural-language onboarding phrases
+- Gateway onboarding now recognizes broader everyday language around files, reminders, calendars, email, notes, and messages
+
 ## [0.2.10] - 2026-04-01
 
 ### Added

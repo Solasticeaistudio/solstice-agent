@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solstice-agent"
-version = "0.2.10"
+version = "0.2.11"
 description = "Local-first AI agent with tools, memory, messaging gateway support, and optional provider extras."
 readme = "README.md"
 license = {text = "MIT"}
