@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.10] - 2026-04-01
+
+### Added
+- Persistent sub-agent orchestration with async runs, task tracking, workflow DAGs, workflow mutation, branch retry, workflow snapshots, and JSON export
+- Workflow-level streaming and follow surfaces across CLI, gateway, and server endpoints
+- New user guide and roadmap/todo documentation for orchestration workflows
+
+### Changed
+- README now documents workflow orchestration as a first-class capability
+- CLI, gateway, and server surfaces expose workflow mutation, inspection, snapshot, and export operations
+
 ## [0.2.6] - 2026-03-29
 
 ### Added
