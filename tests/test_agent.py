@@ -759,7 +759,7 @@ class TestConfig:
         assert flags["enable_web"] is True
         assert flags["enable_browser"] is False
 
-    def test_env_detection_openai(self):
+    def test_env_detection_openai_fills_matching_provider_key(self):
         from solstice_agent.config import Config
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123"}, clear=False):
             config = Config()
@@ -767,7 +767,7 @@ class TestConfig:
             assert config.provider == "openai"
             assert config.api_key == "sk-test123"
 
-    def test_env_detection_anthropic(self):
+    def test_env_detection_anthropic_fills_matching_provider_key(self):
         from solstice_agent.config import Config
         env = {"ANTHROPIC_API_KEY": "sk-ant-test"}
         # Clear OpenAI key to avoid it winning
@@ -776,12 +776,38 @@ class TestConfig:
             old = os.environ.pop("OPENAI_API_KEY", None)
             try:
                 config = Config()
+                config.provider = "anthropic"
                 config._load_env()
                 assert config.provider == "anthropic"
                 assert config.api_key == "sk-ant-test"
             finally:
                 if old:
                     os.environ["OPENAI_API_KEY"] = old
+
+    def test_env_does_not_switch_provider_from_gemini_keys(self):
+        from solstice_agent.config import Config
+        env = {
+            "GEMINI_API_KEY": "gem-key",
+            "GOOGLE_API_KEY": "google-key",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            config = Config()
+            config._load_env()
+            assert config.provider == "openai"
+            assert config.api_key == ""
+
+    def test_explicit_solstice_provider_selects_matching_env_key(self):
+        from solstice_agent.config import Config
+        env = {
+            "SOLSTICE_PROVIDER": "gemini",
+            "GEMINI_API_KEY": "gem-key",
+            "OPENAI_API_KEY": "openai-key",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            config = Config()
+            config._load_env()
+            assert config.provider == "gemini"
+            assert config.api_key == "gem-key"
 
     def test_model_defaults(self):
         from solstice_agent.config import Config

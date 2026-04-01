@@ -26,6 +26,7 @@ from .config import (
 )
 from .agent.core import Agent
 from .agent.personalities import list_personalities, resolve_personality
+from .onboarding import guided_quickstart_options, guided_quickstart_prompt
 from .tools.registry import ToolRegistry
 
 # Colors
@@ -36,6 +37,7 @@ DIM = "\033[2m"
 BOLD = "\033[1m"
 RESET = "\033[0m"
 BLUE = "\033[34m"
+WHITE = "\033[97m"
 
 
 def _has_any_provider_credentials() -> bool:
@@ -47,7 +49,7 @@ def _has_any_provider_credentials() -> bool:
 
 
 def _first_run_needs_onboarding(config_path: str | None) -> bool:
-    return sys.stdin.isatty() and find_config_path(config_path) is None and not _has_any_provider_credentials()
+    return sys.stdin.isatty() and find_config_path(config_path) is None
 
 
 def _print_provider_warnings(config: Config):
@@ -78,7 +80,47 @@ def _run_setup_and_reload(config_path: str | None) -> Config:
     return Config.load(config_path)
 
 
+def _guided_quickstart_options(config: Config) -> list[tuple[str, str]]:
+    return guided_quickstart_options(config)
+
+
+def _run_guided_quickstart(agent: Agent, config: Config, stream: bool = True):
+    options = _guided_quickstart_options(config)
+    print(f"{CYAN}  Let's get started.{RESET}")
+    print(f"  {DIM}Tell me what you want help with first. You can type a number or a word like 'files' or 'reminders'.{RESET}")
+    print()
+    for index, (label, _prompt) in enumerate(options, start=1):
+        print(f"  {GREEN}{index}{RESET}  {label}")
+    print(f"  {GREEN}s{RESET}  Skip for now")
+    print()
+    try:
+        choice = input(f"  {WHITE}What should I help with first?{RESET} {DIM}[1]{RESET}: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+    if choice in {"", "1"}:
+        selected_prompt = options[0][1]
+    elif choice in {"s", "skip"}:
+        print()
+        return
+    elif choice.isdigit() and 1 <= int(choice) <= len(options):
+        selected_prompt = options[int(choice) - 1][1]
+    else:
+        selected_prompt = guided_quickstart_prompt(choice, config=config, allow_fuzzy=False)
+        if not selected_prompt:
+            print(f"  {DIM}Skipping guided start. Just type normally when you're ready.{RESET}\n")
+            return
+
+    print()
+    if stream:
+        _stream_response(agent, selected_prompt)
+    else:
+        response = agent.chat(selected_prompt)
+        print(f"\n{CYAN}{response}{RESET}\n")
+
+
 def main():
+    did_auto_onboarding = False
     # Ensure UTF-8 output on Windows so Unicode banner characters render correctly.
     # Only reconfigure if stdout has a real underlying buffer and non-UTF-8 encoding
     # (skip when running under pytest capsys or other test capture wrappers).
@@ -269,6 +311,7 @@ def main():
     if not args.setup and not args.message and _first_run_needs_onboarding(args.config):
         print(f"\n{CYAN}First launch detected. Sol needs a quick setup before it can think.{RESET}\n")
         _run_setup_and_reload(args.config)
+        did_auto_onboarding = True
 
     # Load config before branches that rely on config-backed defaults.
     config = Config.load(args.config)
@@ -377,7 +420,7 @@ def main():
         return
 
     # CLI args override config
-    config.runtime_profile = args.profile or config.runtime_profile or "developer"
+    config.runtime_profile = args.profile or config.runtime_profile or "local_safe"
     if args.provider:
         config.provider = args.provider
     if args.model:
@@ -818,7 +861,14 @@ def main():
 
     # Interactive mode
     agent_label = args.agent if args.agent and config.has_multi_agent() else None
-    _interactive(agent, config, memory, agent_label=agent_label, stream=not args.no_stream)
+    _interactive(
+        agent,
+        config,
+        memory,
+        agent_label=agent_label,
+        stream=not args.no_stream,
+        guided_start=did_auto_onboarding and not args.continue_session,
+    )
 
 
 def _stream_response(agent: Agent, message: str, images=None):
@@ -861,7 +911,7 @@ BANNER = f"""{CYAN}
 {RESET}"""
 
 
-def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, stream=True):
+def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, stream=True, guided_start: bool = False):
     """Interactive REPL."""
     label = f" [{agent_label}]" if agent_label else ""
     print(BANNER)
@@ -872,12 +922,15 @@ def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, st
     streaming_label = "on" if stream else "off"
     print(f"  {DIM}Tools: {len(tool_names)} loaded | Streaming: {streaming_label}{RESET}")
     print(
-        f"  {DIM}Type 'exit' to quit, 'clear' to reset, 'tools' to list, '/tasks', '/subagents', '/workflows', "
+        f"  {DIM}Type 'exit' to quit, 'clear' to reset, 'tools' to list, '/start', '/tasks', '/subagents', '/workflows', "
         f"'/workflow <id>', '/workflow-events <id>', '/workflow-export <workflow_id> [snapshot_id]', '/workflow-snapshot <workflow_id> [label]', '/add-workflow-node <workflow_id> <node_id> <prompt>', '/retry-workflow-node <workflow_id> <node_id>', '/retry-workflow-branch <workflow_id> <node_id>', "
         f"'/disable-workflow-node <workflow_id> <node_id>', '/enable-workflow-node <workflow_id> <node_id>', '/remove-workflow-node <workflow_id> <node_id>', '/rewire-workflow <workflow_id> <node_id> <dependency_node_id> <action> [policy]', "
         f"'/set-workflow-priority <workflow_id> <node_id> <priority>', '/set-workflow-edge <workflow_id> <node_id> <dependency_node_id> <policy>', "
         f"'/subagent-graph', '/subagent-progress <id>', '/resume-subagent <id>', or '/cancel-subagent <id>'{RESET}\n"
     )
+
+    if guided_start:
+        _run_guided_quickstart(agent, config, stream=stream)
 
     while True:
         try:
@@ -906,6 +959,10 @@ def _interactive(agent: Agent, config: Config, memory=None, agent_label=None, st
         if user_input.lower() == "tools":
             for name in tool_names:
                 print(f"  {DIM}{name}{RESET}")
+            continue
+
+        if user_input.lower() == "/start":
+            _run_guided_quickstart(agent, config, stream=stream)
             continue
 
         if user_input.lower() == "history":

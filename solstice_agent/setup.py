@@ -32,6 +32,13 @@ PROFILE_CHOICES = {
     "4": "power_user",
 }
 
+PROFILE_LABELS = {
+    "1": ("Everyday", "Safe default for most people. Files, memory, web, and scheduled reminders."),
+    "2": ("Builder", "Best for coding and power use. Adds browser automation, terminal, and containers."),
+    "3": ("Messages", "Best for running Sol behind chat apps or a gateway server."),
+    "4": ("Full Access", "Broad local access for advanced users who know they want it."),
+}
+
 
 def _type(text: str, pause: float = 0.01):
     """Print with a subtle typing effect."""
@@ -116,17 +123,58 @@ def _provider_install_hint(provider: str) -> str:
     return ""
 
 
+def _detected_provider_keys() -> list[tuple[str, str]]:
+    detections: list[tuple[str, str]] = []
+    for provider, env_names in (
+        ("openai", ("OPENAI_API_KEY",)),
+        ("anthropic", ("ANTHROPIC_API_KEY",)),
+        ("gemini", ("GEMINI_API_KEY", "GOOGLE_API_KEY")),
+    ):
+        for env_name in env_names:
+            value = os.getenv(env_name, "")
+            if value:
+                detections.append((provider, env_name))
+                break
+    return detections
+
+
+def _choose_provider() -> tuple[str, str]:
+    """Ask for a provider using plain language labels."""
+    detections = _detected_provider_keys()
+    detected_provider = detections[0][0] if len(detections) == 1 else ""
+
+    _say("First, let's pick the model company or app you want me to use.")
+    if detected_provider:
+        detected_name = {
+            "openai": "OpenAI",
+            "anthropic": "Anthropic",
+            "gemini": "Google Gemini",
+        }.get(detected_provider, detected_provider)
+        _say_dim(f"I found an existing API key for {detected_name}, so I'll recommend that option.")
+    elif len(detections) > 1:
+        _say_dim("I found keys for more than one provider, so it's best to choose explicitly.")
+    print()
+    print(f"  {GREEN}1{RESET}  {BOLD}OpenAI{RESET}        - Easiest cloud setup for most people.")
+    print(f"  {GREEN}2{RESET}  {BOLD}Anthropic{RESET}     - Claude models.")
+    print(f"  {GREEN}3{RESET}  {BOLD}Google Gemini{RESET} - Gemini models.")
+    print(f"  {GREEN}4{RESET}  {BOLD}Ollama{RESET}        - Fully local models on your own machine.")
+    print(f"  {GREEN}5{RESET}  {BOLD}Something else{RESET} - Your own OpenAI-compatible endpoint.")
+    print()
+
+    default_choice = {"openai": "1", "anthropic": "2", "gemini": "3"}.get(detected_provider, "1")
+    choice = _ask("Which one sounds right? [1-5]", default=default_choice)
+    provider_map = {"1": "openai", "2": "anthropic", "3": "gemini", "4": "ollama", "5": "openai"}
+    return provider_map.get(choice, "openai"), choice
+
+
 def _choose_runtime_profile() -> str:
     """Ask how the user wants Sol to run."""
-    _say("Next: how should I behave on this machine?")
-    _say("These profiles control my default tool access and safety posture.")
+    _say("Next: pick how hands-on you want me to be on this computer.")
+    _say("If you're not sure, choose Everyday. That's the safest default for most people.")
     print()
-    print(f"  {GREEN}1{RESET}  {BOLD}local_safe{RESET}  - Safe local default. Files, memory, web, cron.")
-    print(f"  {GREEN}2{RESET}  {BOLD}developer{RESET}   - Local coding workflow. Adds browser, terminal, Docker.")
-    print(f"  {GREEN}3{RESET}  {BOLD}gateway{RESET}     - Messaging/server mode. Tight by default, workspace required.")
-    print(f"  {GREEN}4{RESET}  {BOLD}power_user{RESET}  - Broad local access. Most tools enabled.")
-    print()
-    _say_dim("If you're not sure, pick 1 for a local-first default or 2 for development work.")
+    for key in ("1", "2", "3", "4"):
+        label, description = PROFILE_LABELS[key]
+        print(f"  {GREEN}{key}{RESET}  {BOLD}{label}{RESET} - {description}")
     print()
     choice = _ask("Which profile should I start with? [1-4]", default="1")
     return PROFILE_CHOICES.get(choice, "local_safe")
@@ -147,6 +195,20 @@ def _next_steps(provider: str, profile: str, workspace_root: str, setup_gateway:
         steps.append("sol                         # Start a conversation")
         steps.append("sol \"hello\"                 # Quick one-liner")
     return steps
+
+
+def _starter_prompts(profile: str) -> list[str]:
+    prompts = [
+        "What can you help me with on this computer?",
+        "Look through my workspace and explain what is here.",
+    ]
+    if profile == "developer":
+        prompts.append("Open this repo and tell me what looks risky.")
+    elif profile == "gateway":
+        prompts.append("Help me connect this to my messaging apps.")
+    else:
+        prompts.append("Set a daily reminder or recurring check for me.")
+    return prompts
 
 
 def _validate_workspace_root(workspace_root: str) -> tuple[str, str]:
@@ -207,7 +269,7 @@ def run_setup(config_path: str | None = None):
     _wait()
     print()
     _say("Let's get you into a usable state quickly.")
-    _say("This should take about 2 minutes.")
+    _say("I'll keep this simple and explain things in plain English.")
     print()
 
     input(f"  {DIM}Press Enter to start...{RESET}")
@@ -215,20 +277,8 @@ def run_setup(config_path: str | None = None):
 
     _say("First, I need a brain.")
     _wait()
-    _say("Pick the model provider you want me to run on.")
     print()
-    print(f"  {GREEN}1{RESET}  {BOLD}OpenAI{RESET}       - GPT models.")
-    print(f"  {GREEN}2{RESET}  {BOLD}Anthropic{RESET}    - Claude models.")
-    print(f"  {GREEN}3{RESET}  {BOLD}Google{RESET}       - Gemini models.")
-    print(f"  {GREEN}4{RESET}  {BOLD}Ollama{RESET}       - Fully local models on your own machine.")
-    print(f"  {GREEN}5{RESET}  {BOLD}Other{RESET}        - Your own OpenAI-compatible endpoint.")
-    print()
-    _say_dim("If you're not sure, OpenAI is the easiest cloud path and Ollama is the easiest local path.")
-    print()
-
-    choice = _ask("Which one sounds good? [1-5]", default="1")
-    provider_map = {"1": "openai", "2": "anthropic", "3": "gemini", "4": "ollama", "5": "openai"}
-    provider = provider_map.get(choice, "openai")
+    provider, choice = _choose_provider()
     config_lines.append(f"provider: {provider}")
 
     provider_names = {"openai": "OpenAI", "anthropic": "Anthropic", "gemini": "Gemini", "ollama": "Ollama"}
@@ -334,8 +384,8 @@ def run_setup(config_path: str | None = None):
     config_lines.append(f"runtime_profile: {profile}")
 
     print()
-    _say("I also need to know what folder boundary to respect.")
-    _say("That workspace root is where my file tools are allowed to operate.")
+    _say("I also need to know what folder or area of your computer I should treat as my workspace.")
+    _say("This is the place where my file tools are allowed to read and make changes.")
     print()
     default_workspace = os.getcwd()
     if profile == "gateway":
@@ -413,6 +463,10 @@ def run_setup(config_path: str | None = None):
                 print(f"    {GREEN}{command.rstrip()}{RESET}  {DIM}# {comment.strip()}{RESET}")
             else:
                 print(f"    {GREEN}{step}{RESET}")
+        print()
+        _say("A few easy starter things you can ask me:")
+        for prompt in _starter_prompts(profile):
+            print(f"    {GREEN}> {prompt}{RESET}")
         print()
         _say("If you need a deep enterprise integration, install an Artemis connector into the same environment.")
         _say_dim("  Example (Camunda): pipx inject solstice-agent artemis-camunda")

@@ -951,6 +951,197 @@ def test_gateway_shortcuts_surface_tasks_and_subagents(tmp_path):
         raise AssertionError("Gateway progress shortcut did not return progress")
 
 
+def test_gateway_start_shortcut_surfaces_guided_onboarding():
+    from datetime import datetime
+    from solstice_agent.agent.core import Agent
+    from solstice_agent.agent.providers.base import LLMResponse
+    from solstice_agent.gateway.manager import GatewayManager
+    from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+    agent = Agent(provider=StaticProvider([LLMResponse(text="gateway reply")]))
+    manager = GatewayManager(agent=agent)
+    result = manager._process_message(
+        GatewayMessage(
+            id="gw-start",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="/start",
+            timestamp=datetime.now(),
+        )
+    )
+
+    assert "Let’s get started." in result
+    assert "Help around my files" in result
+    assert "Reply with a number or a word like `files`, `reminders`, or `learn`." in result
+
+
+def test_gateway_start_keyword_launches_guided_prompt():
+    from datetime import datetime
+    from solstice_agent.agent.core import Agent
+    from solstice_agent.agent.providers.base import LLMResponse
+    from solstice_agent.gateway.manager import GatewayManager
+    from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+    provider = StaticProvider([LLMResponse(text="guided gateway reply")])
+    agent = Agent(provider=provider)
+    manager = GatewayManager(agent=agent)
+    result = manager._process_message(
+        GatewayMessage(
+            id="gw-reminders",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="reminders",
+            timestamp=datetime.now(),
+        )
+    )
+
+    assert result == "guided gateway reply"
+    assert provider.received
+    assert provider.received[-1]["messages"][-1]["content"] == "Help me set up a daily reminder or recurring check."
+
+
+def test_gateway_start_fuzzy_reply_launches_guided_prompt():
+    from datetime import datetime
+    from solstice_agent.agent.core import Agent
+    from solstice_agent.agent.providers.base import LLMResponse
+    from solstice_agent.gateway.manager import GatewayManager
+    from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+    provider = StaticProvider([LLMResponse(text="guided fuzzy reply")])
+    agent = Agent(provider=provider)
+    manager = GatewayManager(agent=agent)
+    manager._process_message(
+        GatewayMessage(
+            id="gw-start-fuzzy-1",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="/start",
+            timestamp=datetime.now(),
+        )
+    )
+    result = manager._process_message(
+        GatewayMessage(
+            id="gw-start-fuzzy-2",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="can you help me with my files?",
+            timestamp=datetime.now(),
+        )
+    )
+
+    assert result == "guided fuzzy reply"
+    assert provider.received[-1]["messages"][-1]["content"] == "Look through my workspace and explain what is here in simple terms."
+
+
+def test_gateway_start_unmatched_reply_falls_back_to_normal_chat():
+    from datetime import datetime
+    from solstice_agent.agent.core import Agent
+    from solstice_agent.agent.providers.base import LLMResponse
+    from solstice_agent.gateway.manager import GatewayManager
+    from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+    provider = StaticProvider([LLMResponse(text="normal reply")])
+    agent = Agent(provider=provider)
+    manager = GatewayManager(agent=agent)
+    manager._process_message(
+        GatewayMessage(
+            id="gw-start-normal-1",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="/start",
+            timestamp=datetime.now(),
+        )
+    )
+    result = manager._process_message(
+        GatewayMessage(
+            id="gw-start-normal-2",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="tell me a joke",
+            timestamp=datetime.now(),
+        )
+    )
+
+    assert result == "normal reply"
+    assert provider.received[-1]["messages"][-1]["content"] == "tell me a joke"
+
+
+def test_gateway_start_calendar_reply_maps_to_reminders_prompt():
+    from datetime import datetime
+    from solstice_agent.agent.core import Agent
+    from solstice_agent.agent.providers.base import LLMResponse
+    from solstice_agent.gateway.manager import GatewayManager
+    from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+    provider = StaticProvider([LLMResponse(text="calendar reply")])
+    agent = Agent(provider=provider)
+    manager = GatewayManager(agent=agent)
+    manager._process_message(
+        GatewayMessage(
+            id="gw-start-calendar-1",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="/start",
+            timestamp=datetime.now(),
+        )
+    )
+    result = manager._process_message(
+        GatewayMessage(
+            id="gw-start-calendar-2",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="can you help with my calendar and appointments?",
+            timestamp=datetime.now(),
+        )
+    )
+
+    assert result == "calendar reply"
+    assert provider.received[-1]["messages"][-1]["content"] == "Help me set up a daily reminder or recurring check."
+
+
+def test_gateway_start_email_reply_maps_to_connect_or_organize_prompt():
+    from datetime import datetime
+    from solstice_agent.agent.core import Agent
+    from solstice_agent.agent.providers.base import LLMResponse
+    from solstice_agent.gateway.manager import GatewayManager
+    from solstice_agent.gateway.models import GatewayMessage, ChannelType, MessageDirection
+
+    provider = StaticProvider([LLMResponse(text="email reply")])
+    agent = Agent(provider=provider)
+    manager = GatewayManager(agent=agent)
+    manager._process_message(
+        GatewayMessage(
+            id="gw-start-email-1",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="/start",
+            timestamp=datetime.now(),
+        )
+    )
+    result = manager._process_message(
+        GatewayMessage(
+            id="gw-start-email-2",
+            channel=ChannelType.WEBCHAT,
+            direction=MessageDirection.INBOUND,
+            sender_id="user-1",
+            text="I want help connecting my email and messages",
+            timestamp=datetime.now(),
+        )
+    )
+
+    assert result == "email reply"
+    assert provider.received[-1]["messages"][-1]["content"] == "Help me connect email or messaging apps, or get organized and suggest a useful first task."
+
+
 def test_end_to_end_parent_delegation_updates_task_and_returns_result(tmp_path):
     from solstice_agent.agent.core import Agent
     from solstice_agent.agent.providers.base import LLMResponse

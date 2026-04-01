@@ -274,25 +274,25 @@ class Config:
 
     def _load_env(self):
         """Override with environment variables."""
-        # Provider-specific key detection
-        if os.getenv("OPENAI_API_KEY") and not os.getenv("SOLSTICE_PROVIDER"):
-            self.provider = "openai"
-            self.api_key = os.getenv("OPENAI_API_KEY", "")
-        elif os.getenv("ANTHROPIC_API_KEY") and not os.getenv("SOLSTICE_PROVIDER"):
-            self.provider = "anthropic"
-            self.api_key = os.getenv("ANTHROPIC_API_KEY", "")
-        elif os.getenv("GEMINI_API_KEY") and not os.getenv("SOLSTICE_PROVIDER"):
-            self.provider = "gemini"
-            self.api_key = os.getenv("GEMINI_API_KEY", "")
-        elif os.getenv("GOOGLE_API_KEY") and not os.getenv("SOLSTICE_PROVIDER"):
-            self.provider = "gemini"
-            self.api_key = os.getenv("GOOGLE_API_KEY", "")
-
         # Explicit overrides
         if os.getenv("SOLSTICE_PROVIDER"):
             self.provider = os.getenv("SOLSTICE_PROVIDER", self.provider)
         if os.getenv("SOLSTICE_RUNTIME_PROFILE"):
             self.runtime_profile = os.getenv("SOLSTICE_RUNTIME_PROFILE", self.runtime_profile)
+
+        # Provider-specific credentials should fill the configured provider,
+        # not silently switch providers based on whatever env vars happen to exist.
+        provider_env_keys = {
+            "openai": ("OPENAI_API_KEY",),
+            "anthropic": ("ANTHROPIC_API_KEY",),
+            "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+            "ollama": (),
+        }
+        for env_name in provider_env_keys.get(self.provider, ()):
+            if os.getenv(env_name):
+                self.api_key = os.getenv(env_name, self.api_key)
+                break
+
         if os.getenv("SOLSTICE_API_KEY"):
             self.api_key = os.getenv("SOLSTICE_API_KEY", self.api_key)
         if os.getenv("SOLSTICE_MODEL"):

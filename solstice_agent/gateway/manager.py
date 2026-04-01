@@ -10,6 +10,7 @@ import logging
 import threading
 from typing import Dict, List, Any, Optional
 
+from ..onboarding import guided_quickstart_menu, guided_quickstart_prompt
 from .models import ChannelType, GatewayMessage
 from .base_channel import BaseChannel
 
@@ -37,6 +38,7 @@ class GatewayManager:
         self.channels: Dict[ChannelType, BaseChannel] = {}
         self._conversations: Dict[str, List[Dict]] = {}
         self._subagent_followers: Dict[str, bool] = {}
+        self._quickstart_pending: Dict[str, bool] = {}
 
     def set_agent(self, agent):
         """Set the agent that handles messages."""
@@ -330,6 +332,7 @@ class GatewayManager:
     def _process_message(self, msg: GatewayMessage) -> str:
         """Route message to agent (multi-agent or single-agent)."""
         lowered = (msg.text or "").strip().lower()
+        identity = msg.routing_identity()
         if lowered == "/tasks":
             from ..agent.tasks import task_list
             return task_list()
@@ -349,6 +352,9 @@ class GatewayManager:
         else:
             return "Agent not configured."
 
+        if lowered == "/start":
+            self._quickstart_pending[identity] = True
+            return guided_quickstart_menu()
         if lowered == "/subagents" and "subagent_list" in getattr(agent, "_tools", {}):
             return agent._tools["subagent_list"]()
         if lowered == "/workflows" and "workflow_list" in getattr(agent, "_tools", {}):
@@ -434,6 +440,24 @@ class GatewayManager:
             workflow_id = msg.text.split(" ", 1)[1].strip()
             self._follow_workflow_events(msg, workflow_id)
             return f"Following workflow {workflow_id}. Event updates will be pushed here."
+
+        quickstart_prompt = guided_quickstart_prompt(msg.text, allow_fuzzy=False)
+        if not quickstart_prompt and self._quickstart_pending.get(identity):
+            quickstart_prompt = guided_quickstart_prompt(msg.text, allow_fuzzy=True)
+        if quickstart_prompt:
+            self._quickstart_pending.pop(identity, None)
+            try:
+                response_text = agent.chat(quickstart_prompt)
+            except Exception as e:
+                log.error(f"Agent error: {e}", exc_info=True)
+                response_text = "Something went wrong. Try again?"
+            log.info(
+                f"[{msg.channel.value}:{agent_name}] {msg.sender_id}: "
+                f"{msg.text[:50]}... -> {response_text[:50]}..."
+            )
+            return response_text
+        if self._quickstart_pending.get(identity) and not lowered.startswith("/"):
+            self._quickstart_pending.pop(identity, None)
 
         try:
             response_text = agent.chat(msg.text)
